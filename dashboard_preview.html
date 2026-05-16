@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIS Drive | Dashboard Preview</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --card-bg: #f8fafc;
+            --accent-primary: #4f46e5;
+            --accent-secondary: #9333ea;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --glass-border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        aside {
+            background: rgba(255, 255, 255, 0.02);
+            border-right: 1px solid var(--glass-border);
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 2rem;
+        }
+
+        nav ul {
+            list-style: none;
+        }
+
+        nav li {
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        nav li:hover, nav li.active {
+            background: var(--card-bg);
+            color: var(--text-main);
+            transform: translateX(5px);
+        }
+
+        nav li.active {
+            border-left: 3px solid var(--accent-primary);
+        }
+
+        /* Main Content */
+        main {
+            padding: 3rem;
+            overflow-y: auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            padding: 2rem;
+            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-10px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .stat-trend {
+            font-size: 0.85rem;
+            margin-top: 1rem;
+            color: #10b981;
+        }
+
+        /* Activity Section */
+        .content-section {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 2rem;
+            backdrop-filter: blur(20px);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .file-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .file-meta {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate {
+            animation: fadeIn 0.8s ease forwards;
+        }
+
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <aside>
+            <div class="logo">Drive Organizer</div>
+            <nav>
+                <ul>
+                    <li class="active">Overview</li>
+                    <li>File Groups</li>
+                    <li>Upload History</li>
+                    <li>Settings</li>
+                </ul>
+            </nav>
+        </aside>
+        <main>
+            <header class="animate">
+                <div>
+                    <h1>Welcome back, Akshay</h1>
+                    <p style="color: var(--text-dim);">Your files are organized and protected.</p>
+                </div>
+                <div style="background: var(--accent-primary); padding: 0.75rem 1.5rem; border-radius: 12px; cursor: pointer; font-weight: 600;">
+                    Sync Now
+                </div>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card animate delay-1">
+                    <div class="stat-label">Files Organized</div>
+                    <div class="stat-value">1,284</div>
+                    <div class="stat-trend">↑ 12% this month</div>
+                </div>
+                <div class="stat-card animate delay-2">
+                    <div class="stat-label">Storage Saved</div>
+                    <div class="stat-value">4.2 GB</div>
+                    <div class="stat-trend">Cleaned 84 duplicates</div>
+                </div>
+                <div class="stat-card animate delay-3">
+                    <div class="stat-label">Target Folders</div>
+                    <div class="stat-value">18</div>
+                    <div class="stat-trend">Active sync points</div>
+                </div>
+            </div>
+
+            <div class="content-section animate delay-3" style="margin-top: 2rem;">
+                <div class="section-header">
+                    <h2>Recent Activity</h2>
+                    <span style="color: var(--accent-primary); cursor: pointer; font-size: 0.9rem;">View All</span>
+                </div>
+                <div class="activity-list">
+                    <div class="activity-item">
+                        <div class="file-icon">📄</div>
+                        <div class="file-info">
+                            <div class="file-name">client_report_v2.pdf</div>
+                            <div class="file-meta">Uploaded to: Clients/Feb/2026-02-26</div>
+                        </div>
+                        <div class="status-badge">Completed</div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="file-icon">🖼️</div>
+                        <div class="file-info">
+                            <div class="file-name">design_mockup_final.png</div>
+                            <div class="file-meta">Uploaded to: Designs/Screenshots</div>
+                        </div>
+                        <div class="status-badge">Completed</div>
+                    </div>
+                    <div class="activity-item" style="border-bottom: none;">
+                        <div class="file-icon">📁</div>
+                        <div class="file-info">
+                            <div class="file-name">project_assets_archive.zip</div>
+                            <div class="file-meta">Scanning local desktop...</div>
+                        </div>
+                        <div class="status-badge" style="background: rgba(99, 102, 241, 0.1); color: var(--accent-primary);">In Progress</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

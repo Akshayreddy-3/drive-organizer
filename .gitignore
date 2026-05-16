@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Google OAuth tokens (sensitive)
+token.json
+credentials.json
+.env
+
+# Sensitive business data (company names, addresses, upload history)
+companies_reference.json
+companies_reference.enc
+*.enc
+tracker_data.json
+tracker.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
