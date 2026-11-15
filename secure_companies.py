@@ -25,7 +25,7 @@ except ImportError:
     sys.exit(1)
 
 try:
-    from dotenv import load_dotenv, set_key
+    from dotenv import load_dotenv, set_key, dotenv_values
 except ImportError:
     print("❌ Run: pip install python-dotenv")
     sys.exit(1)
@@ -39,9 +39,9 @@ KEY_ENV_NAME  = "COMPANIES_KEY"
 
 
 def _load_key() -> bytes:
-    """Load encryption key from .env"""
-    load_dotenv(ENV_FILE)
-    key = os.getenv(KEY_ENV_NAME, "").strip()
+    """Load encryption key from .env (read from the file each time, so a key that was
+    changed or removed while the app is open is noticed straight away)"""
+    key = (dotenv_values(ENV_FILE).get(KEY_ENV_NAME) or "").strip()
     if not key:
         return b""
     return key.encode()
@@ -64,12 +64,16 @@ def _generate_key() -> bytes:
 
 
 # ── Public API (used by other scripts) ───────────────────────────────────────
-def load_encrypted_reference() -> dict:
+def load_encrypted_reference(strict: bool = False) -> dict:
     """
     Load and decrypt companies_reference.enc → dict.
 
     Falls back to plaintext JSON if .enc doesn't exist yet
     (for backward compatibility during migration).
+
+    strict=True raises RuntimeError when the encrypted list exists but can't be
+    opened, instead of returning an empty list — the app must never mistake an
+    unreadable list for an empty one and save over it.
     """
     load_dotenv(ENV_FILE)
 
@@ -77,6 +81,9 @@ def load_encrypted_reference() -> dict:
     if os.path.exists(ENC_FILE):
         key = _load_key()
         if not key:
+            if strict:
+                raise RuntimeError(f"{KEY_ENV_NAME} is missing from .env, so the saved company list "
+                                   "can't be opened.")
             print("⚠️  COMPANIES_KEY not set in .env — cannot decrypt.")
             print("   Run: python3 secure_companies.py encrypt")
             return {"companies": []}
@@ -87,6 +94,9 @@ def load_encrypted_reference() -> dict:
                 decrypted = f.decrypt(ef.read())
             return json.loads(decrypted.decode())
         except Exception as e:
+            if strict:
+                raise RuntimeError(f"The saved company list can't be opened with the {KEY_ENV_NAME} "
+                                   "in .env.") from e
             print(f"⚠️  Decryption failed: {e}")
             return {"companies": []}
 
@@ -99,6 +109,19 @@ def load_encrypted_reference() -> dict:
 
     print("⚠️  No company reference file found.")
     return {"companies": []}
+
+
+def save_encrypted_reference(data: dict):
+    """Encrypt a company list dict → companies_reference.enc (used by the app's Settings page).
+    Raises RuntimeError rather than replace an existing list that the current key can't open."""
+    if os.path.exists(ENC_FILE):
+        load_encrypted_reference(strict=True)
+    key = _load_key()
+    if not key:
+        key = _generate_key()
+        _save_key_to_env(key)
+    with open(ENC_FILE, "wb") as ef:
+        ef.write(Fernet(key).encrypt(json.dumps(data, indent=2).encode()))
 
 
 # ── CLI Commands ─────────────────────────────────────────────────────────────

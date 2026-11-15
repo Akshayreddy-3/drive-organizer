@@ -304,6 +304,43 @@ class DriveClient:
         if VERBOSE_MODE:
             print("✓ Successfully connected to Google Drive")
     
+    def _execute_paginated_list(
+        self, 
+        query: str, 
+        fields: str = 'files(id, name, mimeType)', 
+        order_by: Optional[str] = None
+    ) -> List[Dict]:
+        """
+        Execute a files().list() query with full pagination.
+        
+        Handles Google Drive's 100-item default page limit by following nextPageToken
+        until all items are retrieved.
+        """
+        items = []
+        page_token = None
+        fields_with_token = f"nextPageToken, {fields}"
+        
+        while True:
+            params = {
+                'q': query,
+                'spaces': 'drive',
+                'fields': fields_with_token,
+                'pageSize': 1000,
+            }
+            if page_token:
+                params['pageToken'] = page_token
+            if order_by:
+                params['orderBy'] = order_by
+                
+            response = self.service.files().list(**params).execute()
+            items.extend(response.get('files', []))
+            
+            page_token = response.get('nextPageToken')
+            if not page_token:
+                break
+                
+        return items
+    
     def find_folder(self, folder_name: str, parent_id: Optional[str] = None) -> Optional[Dict]:
         """
         Search for a folder by name in Google Drive.
@@ -358,11 +395,10 @@ class DriveClient:
         else:
             list_query += f" and '{BASE_FOLDER_ID}' in parents"
             
-        all_folders = self.service.files().list(
-            q=list_query,
-            spaces='drive',
+        all_folders = self._execute_paginated_list(
+            query=list_query,
             fields='files(id, name, parents)'
-        ).execute().get('files', [])
+        )
         
         target_clean = folder_name.strip().lower()
         for folder in all_folders:
@@ -458,18 +494,12 @@ class DriveClient:
             "and trashed=false"
         )
         
-        # Execute the search.
-        # orderBy='name' sorts results alphabetically by folder name.
-        # This makes the output more organized and predictable.
-        results = self.service.files().list(
-            q=query,
-            spaces='drive',
+        # Execute the search with pagination to ensure all folders are retrieved.
+        return self._execute_paginated_list(
+            query=query,
             fields='files(id, name)',
-            orderBy='name'  # Sort alphabetically
-        ).execute()
-        
-        # Return the list of folders (or empty list if none found).
-        return results.get('files', [])
+            order_by='name'
+        )
     
     def list_files_in_folder(self, folder_id: str) -> List[Dict]:
         """
@@ -490,14 +520,11 @@ class DriveClient:
         # trashed=false → exclude deleted items
         query = f"'{folder_id}' in parents and trashed=false"
         
-        # Execute the search and return results.
-        results = self.service.files().list(
-            q=query,
-            spaces='drive',
+        # Execute the search with pagination to ensure all files are retrieved.
+        return self._execute_paginated_list(
+            query=query,
             fields='files(id, name, mimeType)'
-        ).execute()
-        
-        return results.get('files', [])
+        )
     
     def upload_file(
         self, 

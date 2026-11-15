@@ -9,8 +9,10 @@ class DataTracker:
     (tracker_data.json) for the web dashboard.
     """
     
-    def __init__(self, storage_path="tracker_data.json"):
-        self.storage_path = storage_path
+    def __init__(self, storage_path=None):
+        # Default: project root, where dashboard_server.py reads it — not the current directory
+        self.storage_path = storage_path or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tracker_data.json")
         self.data = self._load_data()
 
     def _load_data(self):
@@ -65,15 +67,12 @@ class DataTracker:
         
         # Update aggregates
         if not is_preview:
-            self.data["total_files"] += file_count
             self.data["last_upload"] = run_date
             
             # Update folder stats and file tracking
             for name, files in groups.items():
                 if name not in self.data["groups"]:
                     self.data["groups"][name] = {"count": 0, "files": []}
-                
-                self.data["groups"][name]["count"] += len(files)
                 
                 # Get the Drive path for this group
                 drive_path = ""
@@ -86,13 +85,18 @@ class DataTracker:
                     
                     # Determine status from upload_results
                     status = "uploaded"
-                    if upload_results and name in upload_results:
+                    if upload_results is not None and name not in upload_results:
+                        status = "skipped"   # group had no matching Drive folder
+                    elif upload_results:
                         for r in upload_results[name]:
                             r_name = os.path.basename(r.get('local_path', ''))
                             if r_name == file_basename:
                                 status = r.get('status', 'uploaded')
                                 break
-                    
+                    if status == "uploaded":
+                        self.data["total_files"] += 1
+                        self.data["groups"][name]["count"] += 1
+
                     file_entry = {
                         "name": file_basename,
                         "date": run_date,

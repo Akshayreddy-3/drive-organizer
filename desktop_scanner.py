@@ -42,6 +42,12 @@ from pathlib import Path
 # Optional = can be the type or None
 from typing import List, Dict, Optional
 
+# Cross-platform Desktop path detection
+try:
+    from utils.platform import get_desktop_path as _get_desktop
+except ImportError:
+    def _get_desktop(): return Path.home() / "Desktop"
+
 
 class DesktopScanner:
     """
@@ -108,11 +114,12 @@ class DesktopScanner:
             self.desktop_path = Path(desktop_path)
         else:
             # Default: scan the user's Desktop folder.
-            # Path.home() returns the user's home directory:
-            #   Mac: /Users/username
-            #   Windows: C:\Users\username
-            # Then / "Desktop" adds the Desktop subfolder.
-            self.desktop_path = Path.home() / "Desktop"
+            # Uses cross-platform detection (handles localized Windows,
+            # redirected Desktop folders, etc.)
+            try:
+                self.desktop_path = _get_desktop()
+            except FileNotFoundError:
+                self.desktop_path = Path.home() / "Desktop"
         
         # Make sure the path exists before proceeding.
         if not self.desktop_path.exists():

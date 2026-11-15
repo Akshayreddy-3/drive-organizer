@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drive Organizer</title>
+<style>
+  :root {
+    --bg: #f5f6f4; --panel: #ffffff; --line: #dfe3de; --text: #1c2420; --muted: #66706a;
+    --accent: #1f6f5c; --accent-text: #ffffff; --soft: #e6f1ed; --warn-bg: #fdf3dc; --warn: #7a5200;
+    --bad: #a3271f; --good: #1f6f5c; --log-bg: #17201c; --log-text: #dfe8e3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141917; --panel: #1c2320; --line: #2f3934; --text: #e6ece8; --muted: #98a39d;
+      --accent: #4fb59a; --accent-text: #0d1512; --soft: #223129; --warn-bg: #3a2f14; --warn: #f0cf85;
+      --bad: #f08a80; --good: #4fb59a; --log-bg: #0d1210; --log-text: #cfdad4;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 28px; padding: 0 24px; background: var(--panel);
+           border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 17px; margin: 0; padding: 16px 0; letter-spacing: -0.01em; }
+  nav { display: flex; gap: 4px; }
+  nav button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+               font: inherit; font-weight: 600; padding: 17px 12px 15px; cursor: pointer; }
+  nav button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  main { max-width: 920px; margin: 0 auto; padding: 24px 16px 60px; }
+  section { display: none; } section.on { display: block; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          padding: 18px 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 16px; margin: 0 0 4px; }
+  .card p.hint { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } header { gap: 12px; } }
+  label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; }
+  input[type=text], input[type=search], textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--bg); color: var(--text); font: inherit; }
+  textarea { resize: vertical; min-height: 44px; }
+  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.btn { font: inherit; font-weight: 600; padding: 8px 15px; border-radius: 7px; cursor: pointer;
+               border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.btn.danger { color: var(--bad); }
+  button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .banner { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 12px 16px;
+            margin-bottom: 16px; display: none; }
+  .banner a { color: inherit; font-weight: 600; }
+  .msg { font-size: 14px; min-height: 1.4em; margin: 8px 0 0; }
+  .msg.bad { color: var(--bad); } .msg.good { color: var(--good); }
+  ul.checks { list-style: none; margin: 0; padding: 0; }
+  ul.checks li { display: flex; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+  ul.checks li:first-child { border-top: 0; }
+  ul.checks .mark { width: 1.3em; flex: none; font-weight: 700; }
+  ul.checks .ok .mark { color: var(--good); } ul.checks .todo .mark { color: var(--bad); }
+  ul.checks small { display: block; color: var(--muted); }
+  .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px;
+          background: var(--soft); color: var(--accent); }
+  .chip.bad { color: var(--bad); }
+  pre#log { background: var(--log-bg); color: var(--log-text); border-radius: 8px; padding: 14px;
+            margin: 12px 0 0; min-height: 120px; max-height: 420px; overflow: auto;
+            font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+  .company { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; padding: 10px 0;
+             border-top: 1px solid var(--line); align-items: start; }
+  @media (max-width: 700px) { .company { grid-template-columns: 1fr; } }
+  iframe { width: 100%; height: calc(100vh - 110px); border: 1px solid var(--line); border-radius: 10px;
+           background: var(--panel); }
+  section#history { max-width: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📁 Drive Organizer</h1>
+  <nav>
+    <button data-tab="run" class="on">Run</button>
+    <button data-tab="history">History</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ── Run ── -->
+  <section id="run" class="on">
+    <div class="banner" id="setupBanner"></div>
+
+    <div class="card">
+      <label for="folder">Folder with your scanned files</label>
+      <input type="text" id="folder" spellcheck="false">
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>1 · Rename scanned PDFs</h2>
+        <p class="hint">Reads each letter on this computer and names it
+          "Company - From Sender". Nothing is uploaded.</p>
+        <div class="row">
+          <button class="btn" data-run="rename_preview">Preview names</button>
+          <button class="btn primary" data-run="rename_apply">Apply renames</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>2 · Upload to Drive</h2>
+        <p class="hint">Puts each file in its company's folder, under this month and today's date.</p>
+        <div class="row">
+          <button class="btn" data-run="upload_preview">Preview upload</button>
+          <button class="btn primary" data-run="upload">Upload</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content: space-between">
+        <h2 id="jobTitle">Output</h2>
+        <div class="row">
+          <span class="chip" id="jobChip" hidden></span>
+          <button class="btn danger" id="stopBtn" hidden>Stop</button>
+        </div>
+      </div>
+      <p class="msg bad" id="runMsg"></p>
+      <pre id="log">Pick an action above. Its progress shows here.</pre>
+    </div>
+  </section>
+
+  <!-- ── History ── -->
+  <section id="history">
+    <iframe id="historyFrame" title="Upload history"></iframe>
+  </section>
+
+  <!-- ── Settings ── -->
+  <section id="settings">
+    <div class="card">
+      <h2>Setup check</h2>
+      <p class="hint">Everything here needs a tick before the app can do its job.</p>
+      <ul class="checks" id="checks"></ul>
+    </div>
+
+    <div class="card">
+      <h2>Drive destination</h2>
+      <p class="hint">Open your destination folder in Google Drive and paste its link. It must contain
+        one folder per company.</p>
+      <label for="driveLink">Drive folder link</label>
+      <div class="row">
+        <input type="text" id="driveLink" placeholder="https://drive.google.com/drive/folders/…"
+               style="flex: 1; min-width: 240px" spellcheck="false">
+        <button class="btn primary" id="saveDrive">Save</button>
+      </div>
+      <p class="msg" id="driveMsg"></p>
+      <div class="row" style="margin-top: 6px">
+        <span id="accountStatus"></span>
+        <button class="btn" id="signIn">Sign in to Google</button>
+        <button class="btn danger" id="signOut">Sign out</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content: space-between">
+        <h2>Your companies <span class="chip" id="companyCount"></span></h2>
+        <div class="row">
+          <button class="btn" id="addCompany">Add company</button>
+          <button class="btn" id="importBtn">Import file…</button>
+          <input type="file" id="importFile" accept=".csv,.json,.txt" hidden>
+          <button class="btn primary" id="saveCompanies">Save list</button>
+        </div>
+      </div>
+      <p class="hint">The renamer only ever names a file after a company on this list. Put one address
+        per line. The list is stored encrypted on this computer. Import accepts a CSV file with the
+        name in the first column and addresses in the next columns.</p>
+      <input type="search" id="companySearch" placeholder="Search companies…">
+      <p class="msg" id="companyMsg"></p>
+      <div id="companyList"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const TITLES = { rename_preview: 'Preview names', rename_apply: 'Apply renames',
+                 upload_preview: 'Preview upload', upload: 'Upload', signin: 'Sign in to Google' };
+let appState = {}, companies = [], dirty = false, pollTimer = null, seen = 0;
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+  return data;
+}
+function say(id, text, kind) { const el = $(id); el.textContent = text; el.className = 'msg ' + (kind || ''); }
+
+// ── Tabs ──
+function showTab(name) {
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('main > section').forEach(s => s.classList.toggle('on', s.id === name));
+  document.querySelector('main').style.maxWidth = name === 'history' ? 'none' : '';
+  if (name === 'history') $('historyFrame').src = '/tracker.html';
+  if (name === 'settings') loadState();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+// ── State and setup check ──
+async function loadState() {
+  appState = await api('/api/state');
+  if (document.activeElement !== $('folder')) $('folder').value = appState.scan_folder;
+  if (document.activeElement !== $('driveLink')) $('driveLink').value = appState.drive_link;
+  $('accountStatus').textContent = appState.signed_in ? 'Google account: signed in' : 'Google account: not signed in';
+  $('signIn').hidden = appState.signed_in;
+  $('signOut').hidden = !appState.signed_in;
+
+  const items = [
+    [!!appState.drive_link, 'Drive destination', 'Paste your Drive folder link below.'],
+    [appState.companies_count > 0, 'Company list', appState.companies_error || 'Add your companies below.',
+      appState.companies_count + ' companies'],
+    [appState.has_credentials, 'Google access file',
+      'Ask the person who shared this app for credentials.json and put it in the app folder.'],
+    [appState.signed_in, 'Google account', 'Press "Sign in to Google" below.'],
+  ];
+  items.push([appState.ollama === 'ready', 'Local reading model',
+    appState.ollama === 'offline'
+      ? 'Install Ollama from ollama.com and open it (needed for renaming only).'
+      : 'Open Terminal and run: ollama pull ' + appState.local_model]);
+  const list = $('checks'); list.replaceChildren();
+  for (const [ok, title, todo, detail] of items) {
+    const li = document.createElement('li'); li.className = ok ? 'ok' : 'todo';
+    const mark = document.createElement('span'); mark.className = 'mark'; mark.textContent = ok ? '✓' : '✗';
+    const text = document.createElement('div'); text.textContent = title;
+    const small = document.createElement('small'); small.textContent = ok ? (detail || 'Ready') : todo;
+    text.append(small); li.append(mark, text); list.append(li);
+  }
+  const missing = items.filter(i => !i[0]).map(i => i[1]);
+  const banner = $('setupBanner');
+  banner.style.display = missing.length ? 'block' : 'none';
+  if (missing.length) {
+    banner.textContent = 'Setup isn\'t finished: ' + missing.join(', ') + '. ';
+    const a = document.createElement('a'); a.href = '#'; a.textContent = 'Open Settings';
+    a.onclick = e => { e.preventDefault(); showTab('settings'); };
+    banner.append(a);
+  }
+  setButtons(running);
+}
+
+// ── Running actions ──
+let running = false;
+function setButtons(isRunning) {
+  running = isRunning;
+  document.querySelectorAll('[data-run]').forEach(b => b.disabled = running);
+  $('signIn').disabled = running;
+  $('stopBtn').hidden = !running;
+}
+async function run(action) {
+  const folder = $('folder').value.trim();
+  if (action === 'upload' && !confirm('Upload the files in\n' + folder + '\nto your Drive folder now?')) return;
+  if (action === 'rename_apply' && !confirm('Rename the files in\n' + folder + '\nas shown in the last preview?')) return;
+  say('runMsg', '');
+  try {
+    await api('/api/run', { action, folder });
+    showTab('run'); $('log').textContent = ''; seen = 0; poll();
+  } catch (e) { showTab('run'); say('runMsg', e.message, 'bad'); }
+}
+async function poll() {
+  clearTimeout(pollTimer);
+  const job = await api('/api/job?since=' + seen);
+  if (!job.action) return;
+  $('jobTitle').textContent = TITLES[job.action] || 'Output';
+  if (job.lines.length) {
+    const log = $('log');
+    log.textContent += job.lines.join('\n') + '\n'; seen += job.lines.length; log.scrollTop = log.scrollHeight;
+  }
+  const chip = $('jobChip'); chip.hidden = false;
+  chip.className = 'chip' + (!job.running && job.code !== 0 ? ' bad' : '');
+  chip.textContent = job.running ? 'Running…' : job.code === 0 ? 'Finished' : 'Stopped or failed';
+  setButtons(job.running);
+  if (job.running) pollTimer = setTimeout(poll, 800); else loadState();
+}
+document.querySelectorAll('[data-run]').forEach(b => b.onclick = () => run(b.dataset.run));
+$('stopBtn').onclick = () => api('/api/stop', {});
+
+// ── Settings: Drive and Google account ──
+$('saveDrive').onclick = async () => {
+  try { await api('/api/settings', { drive_link: $('driveLink').value }); say('driveMsg', 'Saved.', 'good'); loadState(); }
+  catch (e) { say('driveMsg', e.message, 'bad'); }
+};
+$('signIn').onclick = () => run('signin');
+$('signOut').onclick = async () => {
+  if (!confirm('Sign this computer out of Google Drive?')) return;
+  await api('/api/signout', {}); loadState();
+};
+
+// ── Settings: companies ──
+function markDirty() { dirty = true; say('companyMsg', 'Unsaved changes — press "Save list".', ''); }
+function renderCompanies() {
+  $('companyCount').textContent = companies.length;
+  const q = $('companySearch').value.trim().toLowerCase();
+  const list = $('companyList'); list.replaceChildren();
+  companies.forEach(c => {
+    if (q && !c.name.toLowerCase().includes(q) && !c.addresses.join(' ').toLowerCase().includes(q)) return;
+    const row = document.createElement('div'); row.className = 'company';
+    const name = document.createElement('input'); name.type = 'text'; name.value = c.name;
+    name.placeholder = 'Company name'; name.setAttribute('aria-label', 'Company name');
+    name.oninput = () => { c.name = name.value; markDirty(); };
+    const addr = document.createElement('textarea'); addr.value = c.addresses.join('\n');
+    addr.rows = Math.max(2, c.addresses.length); addr.placeholder = 'Addresses, one per line';
+    addr.setAttribute('aria-label', 'Addresses for ' + (c.name || 'new company'));
+    addr.oninput = () => { c.addresses = addr.value.split('\n'); markDirty(); };
+    const del = document.createElement('button'); del.className = 'btn danger'; del.textContent = 'Remove';
+    del.onclick = () => { companies.splice(companies.indexOf(c), 1); markDirty(); renderCompanies(); };
+    row.append(name, addr, del); list.append(row);
+  });
+}
+async function loadCompanies() {
+  try { companies = (await api('/api/companies')).companies; }
+  catch (e) {                      // an unreadable list must not look like an empty one you can save over
+    companies = [];
+    ['addCompany', 'importBtn', 'saveCompanies'].forEach(id => $(id).disabled = true);
+    say('companyMsg', e.message + ' Nothing was changed. Restore the .env file that holds the key, then reload this page.', 'bad');
+  }
+  renderCompanies();
+}
+$('companySearch').oninput = renderCompanies;
+$('addCompany').onclick = () => {
+  $('companySearch').value = ''; companies.unshift({ name: '', addresses: [] }); markDirty(); renderCompanies();
+  $('companyList').querySelector('input').focus();
+};
+$('saveCompanies').onclick = async () => {
+  try {
+    await api('/api/companies', { companies });
+    dirty = false; await loadCompanies(); say('companyMsg', 'Saved. Companies on your list: ' + companies.length, 'good'); loadState();
+  } catch (e) { say('companyMsg', e.message, 'bad'); }
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async () => {
+  const file = $('importFile').files[0]; if (!file) return;
+  try {
+    const found = (await api('/api/companies/import', { text: await file.text() })).companies;
+    const have = new Set(companies.map(c => c.name.trim().toLowerCase()));
+    const fresh = found.filter(c => !have.has(c.name.toLowerCase()));
+    companies = fresh.concat(companies); renderCompanies();
+    if (fresh.length) markDirty();
+    say('companyMsg', 'Added ' + fresh.length + ' from the file' +
+      (found.length - fresh.length ? ', skipped ' + (found.length - fresh.length) + ' already on your list' : '') +
+      (fresh.length ? '. Press "Save list" to keep them.' : '.'), fresh.length ? '' : 'good');
+  } catch (e) { say('companyMsg', e.message, 'bad'); }
+  $('importFile').value = '';
+};
+window.onbeforeunload = () => dirty ? 'You have unsaved company changes.' : undefined;
+
+loadState(); loadCompanies(); poll();
+</script>
+</body>
+</html>

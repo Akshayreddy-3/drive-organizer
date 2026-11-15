@@ -42,6 +42,13 @@ import os
 # Error code 0 = success, 1 = failure (a convention in programming).
 import sys
 
+# Cross-platform encoding fix (emoji output on Windows terminals)
+try:
+    from utils.platform import setup_encoding
+    setup_encoding()
+except ImportError:
+    pass
+
 # 'Path' from pathlib provides smarter file path handling.
 from pathlib import Path
 
@@ -150,42 +157,40 @@ def select_files_from_list(files: list) -> list:
     if not files:
         return []
     
-    # Show instructions for the user.
-    print("\nEnter file numbers to upload (comma-separated, or 'all' for all):")
-    print("Example: 1, 3, 5 or all")
-    
-    # Get the user's selection.
-    # .strip() removes extra whitespace, .lower() makes it case-insensitive.
-    selection = input("→ ").strip().lower()
-    
-    # If user typed "all", return ALL files (converted to string paths).
-    # str(f) converts a Path object to a regular string.
-    if selection == 'all':
-        return [str(f) for f in files]
-    
-    # Otherwise, parse the comma-separated numbers.
-    selected = []
-    try:
-        # Split "1, 3, 5" into ["1", " 3", " 5"], then convert each to int.
-        # int(x.strip()) removes spaces and converts to a number.
-        indices = [int(x.strip()) for x in selection.split(',')]
+    while True:
+        # Show instructions for the user.
+        print("\nEnter file numbers to upload (comma-separated, or 'all' for all):")
+        print("Example: 1, 3, 5 or all")
         
-        for i in indices:
-            # Check if the number is in valid range (1 to number-of-files).
-            # Remember, the list is displayed 1-indexed to the user, but
-            # Python lists are 0-indexed, so files[i-1] gets the right file.
-            if 1 <= i <= len(files):
-                selected.append(str(files[i - 1]))
-            else:
-                print(f"  Skipping invalid number: {i}")
-    except ValueError:
-        # If the user typed something that's not a number (like "abc"),
-        # int() throws a ValueError. We catch it and ask again.
-        # This uses RECURSION — the function calls itself to retry.
-        print("  Invalid input. Please enter numbers separated by commas.")
-        return select_files_from_list(files)
-    
-    return selected
+        # Get the user's selection.
+        # .strip() removes extra whitespace, .lower() makes it case-insensitive.
+        selection = input("→ ").strip().lower()
+        
+        # If user typed "all", return ALL files (converted to string paths).
+        # str(f) converts a Path object to a regular string.
+        if selection == 'all':
+            return [str(f) for f in files]
+        
+        # Otherwise, parse the comma-separated numbers.
+        selected = []
+        try:
+            # Split "1, 3, 5" into ["1", " 3", " 5"], then convert each to int.
+            # int(x.strip()) removes spaces and converts to a number.
+            indices = [int(x.strip()) for x in selection.split(',')]
+            
+            for i in indices:
+                # Check if the number is in valid range (1 to number-of-files).
+                # Remember, the list is displayed 1-indexed to the user, but
+                # Python lists are 0-indexed, so files[i-1] gets the right file.
+                if 1 <= i <= len(files):
+                    selected.append(str(files[i - 1]))
+                else:
+                    print(f"  Skipping invalid number: {i}")
+            return selected
+        except ValueError:
+            # If the user typed something that's not a number (like "abc"),
+            # int() throws a ValueError. We catch it and prompt again in the loop.
+            print("  Invalid input. Please enter numbers separated by commas.")
 
 
 def upload_from_desktop(drive_service, folder_manager, file_uploader):

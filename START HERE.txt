@@ -1,0 +1,45 @@
+DRIVE ORGANIZER - FIRST START
+=============================
+
+ON A MAC
+  1. Double-click "Drive Organizer.command".
+  2. The first time, macOS refuses to open it because it was downloaded.
+     Allow it once, either way:
+
+     In System Settings
+       - Open System Settings > Privacy & Security and scroll to Security.
+       - Click "Open Anyway" next to the message about
+         "Drive Organizer.command" (the button is there for about an
+         hour after step 1), then enter your login password.
+       - From now on, double-clicking the file works.
+
+     Or in Terminal
+       - Open the Terminal app.
+       - Type   xattr -d com.apple.quarantine   and then a space.
+       - Drag "Drive Organizer.command" into the Terminal window and
+         press Return.
+       - From now on, double-clicking the file works.
+
+  3. The first start sets the app up (a few minutes, needs internet).
+     Then the app opens in your browser.
+
+ON WINDOWS
+  1. Double-click "Drive Organizer.bat".
+  2. If Windows shows a security warning, choose Run
+     (or "More info", then "Run anyway").
+  3. If the window says Python is missing, let it install, close the
+     window, and double-click "Drive Organizer.bat" again.
+  4. The first start sets the app up (a few minutes, needs internet).
+     Then the app opens in your browser.
+
+THEN, IN THE APP
+  Open Settings and work down the Setup check:
+    - Paste the link to your Google Drive destination folder.
+    - Add your companies and their addresses (or import a CSV file).
+    - Put the credentials.json file you were given into this folder,
+      then press "Sign in to Google".
+    - To rename scanned PDFs, install Ollama (ollama.com). The Setup
+      check tells you what is still missing.
+
+  Keep the launcher window open while you use the app. Closing it
+  quits the app.

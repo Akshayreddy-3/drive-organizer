@@ -27,8 +27,8 @@ def clean_name(name: str) -> str:
     name = os.path.splitext(name)[0]
     # Remove ' - From [sender]' suffix added by ai_pdf_renamer (case-insensitive)
     name = re.sub(r'\s*-\s*From\s+.*', '', name, flags=re.IGNORECASE).strip()
-    # Remove 'inc' (case-insensitive)
-    name = re.sub(r'inc', '', name, flags=re.IGNORECASE).strip()
+    # Remove 'inc' as standalone word (case-insensitive)
+    name = re.sub(r'\binc\b', '', name, flags=re.IGNORECASE).strip()
     # Remove everything except letters
     return re.sub(r'[^a-zA-Z]', '', name).lower()
 
@@ -40,9 +40,7 @@ def main():
         
         # 2. Fetch Drive Folders
         print(f"→ Scanning Drive folders in 'Houston Mails' ({BASE_FOLDER_ID})...")
-        q = f"'{BASE_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        results = client.service.files().list(q=q, fields='files(id, name)').execute()
-        drive_folders = results.get('files', [])
+        drive_folders = client.list_root_folders()
         
         folder_map = {} # cleaned -> original
         for f in drive_folders:

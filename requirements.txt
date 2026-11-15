@@ -3,10 +3,14 @@ google-auth-httplib2>=0.1.0
 google-auth-oauthlib>=1.0.0
 python-dotenv>=1.0.0
 
-# AI PDF Renamer (ai_pdf_renamer.py)
-google-genai>=1.0.0
+# PDF Renamer (ai_pdf_renamer.py) — runs locally; also needs the Ollama app (ollama.com)
 PyMuPDF>=1.23.0
 Pillow>=10.0.0
+ocrmac>=1.0.0; sys_platform == "darwin"
+rapidocr>=3.0.0; sys_platform != "darwin"      # on-device OCR for Windows (models ship in the package)
+onnxruntime>=1.17.0; sys_platform != "darwin"
+rapidfuzz>=3.0.0
+google-genai>=2.4.0   # only for --gemini-fallback
 
 # Company data encryption (secure_companies.py)
 cryptography>=41.0.0

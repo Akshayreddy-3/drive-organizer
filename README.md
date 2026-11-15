@@ -27,33 +27,72 @@ drive_organizer/
 
 ## 🛠️ Setup
 
-1. **Install Dependencies:**
-   ```bash
-   pip3 install -r requirements.txt
-   ```
+### macOS / Linux
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Windows
+```powershell
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+> **Note:** On Windows, use `python` instead of `python3` for all commands below.
 
 2. **Google Cloud Credentials:**
    - Place your `credentials.json` in the project root.
    - The app will generate `token.json` after your first login.
+
+## 🖥️ The App (easiest way)
+
+Double-click **`Drive Organizer.command`** (Mac) or **`Drive Organizer.bat`** (Windows). The first
+run installs everything the app needs, then it opens in your browser. It runs only on your computer.
+On a computer that received the app as a download, the system blocks the launcher the first time —
+`START HERE.txt` has the steps.
+
+- **Run** — rename scanned PDFs and upload to Drive, each with a preview first.
+- **History** — the upload dashboard.
+- **Settings** — your Drive destination link, your company list and addresses, Google sign-in,
+  and a setup check that says what is still missing.
+
+To give the app to a coworker, run `python3 scripts/make_share_zip.py` and send them
+`dist/Drive-Organizer.zip`. It leaves out your keys, Google sign-in, company list and history;
+they enter their own Drive link and companies in Settings.
 
 ## 🎬 How to Use
 
 ### 1. Run the Upload
 This will scan your Desktop, group files, and upload them to matching folders in your Drive.
 ```bash
+# macOS / Linux
 python3 run_upload.py
+
+# Windows
+python run_upload.py
 ```
 
 ### 2. Preview First (Recommended)
 See which files will be grouped and where they would go without uploading anything:
 ```bash
+# macOS / Linux
 python3 run_upload.py --preview
+
+# Windows
+python run_upload.py --preview
 ```
 
 ### 3. Run Tests
 Verify the code is working perfectly:
 ```bash
+# macOS / Linux
 python3 run_tests.py
+
+# Windows
+python run_tests.py
 ```
 
 ## 📊 Live Dashboard

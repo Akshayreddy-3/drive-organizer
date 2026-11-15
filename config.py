@@ -70,8 +70,8 @@ else:
 # =============================================================================
 
 # The ID of the folder where all project folders should be located.
-# Provided by user: https://drive.google.com/drive/folders/1NcpbemBBPxLzBjtkUml9KbAk8uWiCfLA
-BASE_FOLDER_ID = os.getenv('BASE_FOLDER_ID', '1NcpbemBBPxLzBjtkUml9KbAk8uWiCfLA')
+# Each user sets their own in the app's Settings page (saved to .env).
+BASE_FOLDER_ID = os.getenv('BASE_FOLDER_ID', '')
 
 # =============================================================================
 # FOLDER NAMING SETTINGS

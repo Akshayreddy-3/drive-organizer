@@ -241,19 +241,13 @@ class FileUploader:
         counter = 1        # Start numbering from 1
         new_name = filename  # Start with the original name
         
+        # List all existing files in the folder once (efficient).
+        # This searches for actual FILES, not just folders.
+        existing_files = self.client.list_files_in_folder(folder_id)
+        existing_names = {f['name'].lower() for f in existing_files}
+        
         # Keep checking names until we find one that doesn't exist.
-        # This is a "while True" loop — it runs forever until we 'break'.
-        while True:
-            # Check if a file with this name exists in the folder.
-            # find_folder() searches by name — if it finds a match, the name
-            # is taken. If it returns None, the name is available.
-            existing = self.client.find_folder(new_name, folder_id)
-            
-            if not existing:
-                # No file with this name exists — it's available!
-                break  # Exit the loop
-            
-            # Name is taken. Try the next number.
+        while new_name.lower() in existing_names:
             # f"{name}{counter}{ext}" creates names like:
             #   "report1.pdf", "report2.pdf", "report3.pdf", etc.
             # Note: NO underscore between name and number (user requested this).
@@ -262,8 +256,6 @@ class FileUploader:
             
             # Safety limit: if we've tried 1000 names and all are taken,
             # something is very wrong. Stop to prevent an infinite loop.
-            # This should NEVER happen in practice (who has 1000 files
-            # with the same name?), but it's good defensive programming.
             if counter > 1000:
                 raise Exception(f"Could not generate unique name for {filename}")
         
@@ -368,7 +360,8 @@ class FileUploader:
                 return {
                     'status': 'uploaded',
                     'renamed_from': filename,  # The original name (for reference)
-                    'file': file               # Info about the uploaded file
+                    'file': file,               # Info about the uploaded file
+                    'local_path': local_path
                 }
             
             # -----------------------------------------------------------------
@@ -390,7 +383,8 @@ class FileUploader:
                 return {
                     'status': 'uploaded',
                     'overwritten': similar_names,  # Names of deleted files
-                    'file': file
+                    'file': file,
+                    'local_path': local_path
                 }
         
         # =====================================================================
@@ -401,7 +395,8 @@ class FileUploader:
         
         return {
             'status': 'uploaded',
-            'file': file
+            'file': file,
+            'local_path': local_path
         }
     
     def upload_multiple(self, file_paths: List[str], folder_id: str) -> List[Dict]:

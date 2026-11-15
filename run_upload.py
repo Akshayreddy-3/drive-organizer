@@ -68,6 +68,13 @@ Date: 2026-02-03
 # sys.exit(0) = exit successfully, sys.exit(1) = exit with an error.
 import sys
 
+# Cross-platform encoding fix (emoji output on Windows terminals)
+try:
+    from utils.platform import setup_encoding
+    setup_encoding()
+except ImportError:
+    pass
+
 # 'argparse' is Python's built-in library for parsing command-line arguments.
 # It lets users pass options like --preview or --path /some/folder when
 # running the script from the terminal.
@@ -87,7 +94,7 @@ from src.file_scanner import FileScanner        # Finds files on your computer
 from src.file_grouper import FileGrouper        # Groups files by base name
 from src.folder_navigator import FolderNavigator  # Navigates Drive folder structure
 from src.uploader import FileUploader           # Uploads files with duplicate handling
-from src.config import VERBOSE_MODE             # Whether to show detailed output
+from src.config import VERBOSE_MODE, BASE_FOLDER_ID  # Detailed output flag; destination Drive folder
 from src.data_tracker import DataTracker        # Tracks history for the dashboard
 
 
@@ -184,7 +191,12 @@ def main():
     # =========================================================================
     # Read --preview, --path, and --quiet from the command line.
     args = parse_arguments()
-    
+
+    if not BASE_FOLDER_ID:
+        print("❌ No Drive destination set. Add your Drive folder link in the app's Settings "
+              "(or set BASE_FOLDER_ID in .env).")
+        sys.exit(1)
+
     # Print a styled header banner.
     print("\n" + "=" * 60)
     print("  📁 Google Drive File Organizer v2")
@@ -318,6 +330,7 @@ def main():
     total_uploaded = 0          # Files successfully uploaded
     total_skipped = 0           # Files skipped (duplicates)
     total_errors = 0            # Files that failed to upload
+    preview_unmatched = 0       # Preview only: files whose group has no Drive folder
     
     # Track files that were NOT uploaded for the final list.
     not_uploaded = []
@@ -338,7 +351,12 @@ def main():
         
         # If in preview mode, just show what WOULD happen, don't upload.
         if args.preview:
-            print(f"   ✓ Would upload to: {base_name}/[month]/[date]/")
+            folder = navigator.find_matching_folder(base_name)
+            if folder:
+                print(f"   ✓ Would upload to: {folder['name']}/[month]/[date]/")
+            else:
+                preview_unmatched += len(group_files)
+                print("   ⚠ No matching folder in Drive — these files would be SKIPPED")
             for f in group_files:
                 print(f"      └── {os.path.basename(f)}")
             continue  # Move to the next group (no actual upload)
@@ -391,6 +409,7 @@ def main():
         print(f"\n📊 Preview Summary:")
         print(f"   • Groups to process: {len(groups)}")
         print(f"   • Files found:      {total_scanned}")
+        print(f"   • Would be skipped: {preview_unmatched} (no matching folder in Drive)")
         print("   ℹ Files are only uploaded to EXISTING folders in Drive.")
     else:
         # Full upload summary.

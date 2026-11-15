@@ -164,9 +164,12 @@ class FileUploader:
         counter = 1
         new_name = filename
         
+        # List all existing files in the folder once (efficient).
+        existing_files = self.drive.list_files_in_folder(folder_id)
+        existing_names = {f['name'].lower() for f in existing_files}
+        
         # Keep trying names until we find one that's not taken.
-        # search_folder() returns None if the name doesn't exist in the folder.
-        while self.drive.search_folder(new_name, folder_id):
+        while new_name.lower() in existing_names:
             # Create a new name with the counter appended DIRECTLY.
             # "report" + "1" + ".pdf" = "report1.pdf"
             new_name = f"{name}{counter}{ext}"
@@ -222,7 +225,8 @@ class FileUploader:
                 return {
                     'status': 'skipped',
                     'reason': 'similar_file_exists',
-                    'similar_files': similar_names
+                    'similar_files': similar_names,
+                    'local_path': file_path
                 }
             
             # --- RENAME MODE ---
@@ -235,7 +239,8 @@ class FileUploader:
                 return {
                     'status': 'uploaded',
                     'renamed_from': filename,
-                    'file': file
+                    'file': file,
+                    'local_path': file_path
                 }
             
             # --- OVERWRITE MODE ---
@@ -250,14 +255,16 @@ class FileUploader:
                 return {
                     'status': 'uploaded',
                     'overwritten': similar_names,
-                    'file': file
+                    'file': file,
+                    'local_path': file_path
                 }
         
         # STEP 3: No duplicates found — upload normally.
         file = self.drive.upload_file(file_path, folder_id)
         return {
             'status': 'uploaded',
-            'file': file
+            'file': file,
+            'local_path': file_path
         }
     
     def upload_multiple_files(self, file_paths: list, folder_id: str) -> list:

@@ -425,9 +425,7 @@ class FolderNavigator:
         
         if VERBOSE_MODE:
             # Show the complete folder path for the user.
-            month_name = datetime.now().strftime(MONTH_FOLDER_FORMAT)
-            date_name = datetime.now().strftime(DATE_FOLDER_FORMAT)
-            print(f"  ✓ Target: {project_folder['name']}/{month_name}/{date_name}")
+            print(f"  ✓ Target: {project_folder['name']}/{month_folder['name']}/{date_folder['name']}")
         
         # Return the date folder — this is where files will be uploaded.
         return date_folder

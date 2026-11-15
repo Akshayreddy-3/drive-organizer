@@ -159,6 +159,43 @@ class DriveService:
         self.service = build('drive', 'v3', credentials=creds)
         print("✓ Successfully connected to Google Drive")
     
+    def _execute_paginated_list(
+        self, 
+        query: str, 
+        fields: str = 'files(id, name, mimeType)', 
+        order_by: Optional[str] = None
+    ) -> List[Dict]:
+        """
+        Execute a files().list() query with full pagination.
+        
+        Handles Google Drive's 100-item default page limit by following nextPageToken
+        until all items are retrieved.
+        """
+        items = []
+        page_token = None
+        fields_with_token = f"nextPageToken, {fields}"
+        
+        while True:
+            params = {
+                'q': query,
+                'spaces': 'drive',
+                'fields': fields_with_token,
+                'pageSize': 1000,
+            }
+            if page_token:
+                params['pageToken'] = page_token
+            if order_by:
+                params['orderBy'] = order_by
+                
+            response = self.service.files().list(**params).execute()
+            items.extend(response.get('files', []))
+            
+            page_token = response.get('nextPageToken')
+            if not page_token:
+                break
+                
+        return items
+    
     def search_folder(self, folder_name: str, parent_id: Optional[str] = None) -> Optional[dict]:
         """
         Search for a folder by name in Google Drive.
@@ -198,11 +235,10 @@ class DriveService:
         else:
             list_query += f" and '{BASE_FOLDER_ID}' in parents"
             
-        all_folders = self.service.files().list(
-            q=list_query,
-            spaces='drive',
+        all_folders = self._execute_paginated_list(
+            query=list_query,
             fields='files(id, name, parents)'
-        ).execute().get('files', [])
+        )
         
         target_clean = folder_name.strip().lower()
         for folder in all_folders:
@@ -252,16 +288,13 @@ class DriveService:
         Returns:
             List of file info dicts (id, name, mimeType)
         """
-        # Query for items whose parent is this folder.
         query = f"'{folder_id}' in parents and trashed=false"
-        
-        results = self.service.files().list(
-            q=query,
-            spaces='drive',
+
+        # Execute the search with pagination to ensure all files are retrieved.
+        return self._execute_paginated_list(
+            query=query,
             fields='files(id, name, mimeType)'
-        ).execute()
-        
-        return results.get('files', [])
+        )
     
     def upload_file(self, file_path: str, folder_id: str, file_name: str = None) -> dict:
         """
