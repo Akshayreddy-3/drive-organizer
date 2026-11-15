@@ -184,12 +184,20 @@ const TITLES = { rename_preview: 'Preview names', rename_apply: 'Apply renames',
 let appState = {}, companies = [], dirty = false, pollTimer = null, seen = 0;
 
 async function api(path, body) {
-  const res = await fetch(path, body === undefined ? {} : {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let res;
+  try {
+    res = await fetch(path, body === undefined ? {} : {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (e) {                    // no answer at all: the launcher window was closed
+    showOffline();
+    const err = new Error(OFFLINE); err.offline = true; throw err;
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Something went wrong.');
   return data;
 }
+const OFFLINE = 'Drive Organizer isn\'t running. Start it again with the launcher ("Drive Organizer.command" or "Drive Organizer.bat"), then reload this page.';
+function showOffline() { const b = $('setupBanner'); b.textContent = OFFLINE; b.style.display = 'block'; }
 function say(id, text, kind) { const el = $(id); el.textContent = text; el.className = 'msg ' + (kind || ''); }
 
 // ── Tabs ──
@@ -316,7 +324,7 @@ async function loadCompanies() {
   catch (e) {                      // an unreadable list must not look like an empty one you can save over
     companies = [];
     ['addCompany', 'importBtn', 'saveCompanies'].forEach(id => $(id).disabled = true);
-    say('companyMsg', e.message + ' Nothing was changed. Restore the .env file that holds the key, then reload this page.', 'bad');
+    say('companyMsg', e.offline ? e.message : e.message + ' Nothing was changed. Restore the .env file that holds the key, then reload this page.', 'bad');
   }
   renderCompanies();
 }
@@ -348,7 +356,7 @@ $('importFile').onchange = async () => {
 };
 window.onbeforeunload = () => dirty ? 'You have unsaved company changes.' : undefined;
 
-loadState(); loadCompanies(); poll();
+loadState().catch(() => {}); loadCompanies(); poll().catch(() => {});   // api() already shows the offline banner
 </script>
 </body>
 </html>
