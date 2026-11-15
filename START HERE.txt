@@ -43,3 +43,9 @@ THEN, IN THE APP
 
   Keep the launcher window open while you use the app. Closing it
   quits the app.
+
+  To skip the launcher from now on: in Settings, turn on "Start
+  automatically". The app then runs quietly in the background whenever
+  you are signed in to your computer, and opening app.html (or
+  http://localhost:8686) always works. Turn it off there at any time.
+  On Windows it takes effect the next time you sign in.

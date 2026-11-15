@@ -20,6 +20,7 @@ import io
 import json
 import os
 import platform
+import plistlib
 import re
 import subprocess
 import sys
@@ -69,6 +70,61 @@ def clean_folder(text: str) -> str:
     and a network path (\\\\server\\share) is read back with a backslash missing."""
     text = text.strip().strip('"').strip()        # Windows "Copy as path" adds the quotes
     return Path(os.path.expanduser(text)).as_posix() if text else ""
+
+
+LAUNCH_LABEL = "com.driveorganizer.app"
+
+
+def autostart_path() -> str:
+    """The file that makes this computer start the app at sign-in ('' where that isn't supported)."""
+    if platform.system() == "Darwin":
+        return os.path.expanduser(f"~/Library/LaunchAgents/{LAUNCH_LABEL}.plist")
+    if platform.system() == "Windows":
+        return os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows", "Start Menu",
+                            "Programs", "Startup", "Drive Organizer.vbs")
+    return ""
+
+
+def autostart_enabled() -> bool:
+    path = autostart_path()
+    return bool(path) and os.path.exists(path)
+
+
+def set_autostart(on: bool):
+    """Turn 'start when I sign in' on or off for this user only (no administrator needed)."""
+    path = autostart_path()
+    if not path:
+        raise ValueError("Starting automatically isn't available on this system.")
+    if platform.system() == "Darwin":
+        service = f"gui/{os.getuid()}/{LAUNCH_LABEL}"
+        subprocess.run(["launchctl", "bootout", service], capture_output=True)     # replace any older copy
+        if on:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as f:
+                plistlib.dump({
+                    "Label": LAUNCH_LABEL,
+                    "ProgramArguments": [sys.executable, os.path.join(PROJECT_DIR, "app.py"), "--no-open"],
+                    "WorkingDirectory": PROJECT_DIR,
+                    "RunAtLoad": True,
+                    "KeepAlive": {"SuccessfulExit": False},      # restart if it crashes, not if it quits
+                    "StandardOutPath": os.path.expanduser("~/Library/Logs/DriveOrganizer.log"),
+                    "StandardErrorPath": os.path.expanduser("~/Library/Logs/DriveOrganizer.log"),
+                }, f)
+            started = subprocess.run(["launchctl", "bootstrap", f"gui/{os.getuid()}", path],
+                                     capture_output=True, text=True)
+            if started.returncode:
+                os.remove(path)
+                raise ValueError("macOS wouldn't start it: " + (started.stderr.strip() or "unknown error"))
+        elif os.path.exists(path):
+            os.remove(path)
+    elif on:
+        pythonw = sys.executable[:-len("python.exe")] + "pythonw.exe" if sys.executable.lower().endswith("python.exe") else sys.executable
+        script = (f'Set s = CreateObject("WScript.Shell")\r\ns.CurrentDirectory = "{PROJECT_DIR}"\r\n'
+                  f's.Run """{pythonw}"" ""app.py"" --no-open", 0, False\r\n')   # 0 = no window
+        with open(path, "w", encoding="ascii", newline="") as f:
+            f.write(script)
+    elif os.path.exists(path):
+        os.remove(path)
 
 
 PICK_PROMPT = "Choose the folder with your scanned files"
@@ -162,6 +218,8 @@ def state() -> dict:
     return {
         "platform": platform.system(),
         "local_model": LOCAL_MODEL,
+        "can_autostart": bool(autostart_path()),
+        "autostart": autostart_enabled(),
         "scan_folder": scan_folder(),
         "drive_link": f"https://drive.google.com/drive/folders/{folder_id}" if folder_id else "",
         "companies_count": companies_count,
@@ -283,6 +341,8 @@ class AppHandler(DashboardHandler):
             start_job(body.get("action"), folder)
             if body.get("action") != "signin":
                 save_env("SCAN_FOLDER", folder)
+        elif path == "/api/autostart":
+            set_autostart(bool(body.get("on")))
         elif path == "/api/pick-folder":
             return {"folder": pick_folder()}
         elif path == "/api/stop":
@@ -311,8 +371,9 @@ def main():
     try:
         server = ThreadingHTTPServer(("127.0.0.1", args.port), AppHandler)   # this computer only
     except OSError:
-        print(f"Drive Organizer is already running — opening {url}")
-        webbrowser.open(url)
+        print(f"Drive Organizer is already running at {url}")
+        if not args.no_open:
+            webbrowser.open(url)
         return
 
     print(f"\n  📁 Drive Organizer is running at {url}")

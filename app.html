@@ -143,6 +143,17 @@
       <ul class="checks" id="checks"></ul>
     </div>
 
+    <div class="card" id="autoCard">
+      <h2>Start automatically</h2>
+      <p class="hint">Keep Drive Organizer running quietly in the background whenever you are signed in to
+        this computer, so opening the app or its page always works. Turn it off here at any time.</p>
+      <div class="row">
+        <button class="btn primary" id="autoBtn"></button>
+        <span id="autoStatus"></span>
+      </div>
+      <p class="msg" id="autoMsg"></p>
+    </div>
+
     <div class="card">
       <h2>Drive destination</h2>
       <p class="hint">Open your destination folder in Google Drive and paste its link. It must contain
@@ -220,6 +231,9 @@ async function loadState() {
   if (!$('folder').value) $('folder').value = appState.scan_folder;   // never overwrite a folder just chosen
   if (document.activeElement !== $('driveLink')) $('driveLink').value = appState.drive_link;
   $('accountStatus').textContent = appState.signed_in ? 'Google account: signed in' : 'Google account: not signed in';
+  $('autoCard').hidden = !appState.can_autostart;
+  $('autoBtn').textContent = appState.autostart ? 'Turn off' : 'Turn on';
+  $('autoStatus').textContent = appState.autostart ? 'On: starts when you sign in' : 'Off';
   $('signIn').hidden = appState.signed_in;
   $('signOut').hidden = !appState.signed_in;
 
@@ -302,6 +316,12 @@ $('saveDrive').onclick = async () => {
   try { await api('/api/settings', { drive_link: $('driveLink').value }); say('driveMsg', 'Saved.', 'good'); loadState(); }
   catch (e) { say('driveMsg', e.message, 'bad'); }
 };
+$('autoBtn').onclick = async () => {
+  try {
+    await api('/api/autostart', { on: !appState.autostart }); await loadState();
+    say('autoMsg', appState.autostart ? 'Done. Drive Organizer will start by itself when you sign in.' : 'Turned off.', 'good');
+  } catch (e) { say('autoMsg', e.message, 'bad'); }
+};
 $('signIn').onclick = () => run('signin');
 $('signOut').onclick = async () => {
   if (!confirm('Sign this computer out of Google Drive?')) return;
@@ -366,7 +386,24 @@ $('importFile').onchange = async () => {
 };
 window.onbeforeunload = () => dirty ? 'You have unsaved company changes.' : undefined;
 
-loadState().catch(() => {}); loadCompanies(); poll().catch(() => {});   // api() already shows the offline banner
+// Opened by double-clicking this file: the app can't be reached from here, so wait for it and hand over
+function waitForApp() {
+  const APP_URL = 'http://localhost:8686/';
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;inset:0;z-index:10;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px';
+  const card = document.createElement('div'); card.className = 'card'; card.style.maxWidth = '520px';
+  const title = document.createElement('h2'); title.textContent = 'Waiting for Drive Organizer…';
+  const text = document.createElement('p'); text.className = 'hint';
+  text.textContent = 'Start it by double-clicking "Drive Organizer.command" (Mac) or "Drive Organizer.bat" (Windows) in the app folder. ' +
+    'This page opens the app by itself as soon as it is ready. Turn on "Start automatically" in Settings once, ' +
+    'and you won\'t need to start it again.';
+  card.append(title, text); box.append(card); document.body.append(box);
+  const tryConnect = () => fetch(APP_URL + 'api/state', { mode: 'no-cors' })
+    .then(() => location.replace(APP_URL), () => setTimeout(tryConnect, 1500));
+  tryConnect();
+}
+if (location.protocol === 'file:') waitForApp();
+else { loadState().catch(() => {}); loadCompanies(); poll().catch(() => {}); }   // api() shows the offline banner
 </script>
 </body>
 </html>

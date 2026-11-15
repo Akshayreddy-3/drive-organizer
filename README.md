@@ -51,6 +51,9 @@ pip install -r requirements.txt
 
 Double-click **`Drive Organizer.command`** (Mac) or **`Drive Organizer.bat`** (Windows). The first
 run installs everything the app needs, then it opens in your browser. It runs only on your computer.
+Turn on **Start automatically** in Settings to keep it running in the background from sign-in on, so
+`app.html` or `http://localhost:8686` always opens it; opening `app.html` while the app is stopped waits
+and connects by itself once it starts.
 On a computer that received the app as a download, the system blocks the launcher the first time —
 `START HERE.txt` has the steps.
 

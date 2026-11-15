@@ -119,5 +119,57 @@ class CompanyListSafetyTests(unittest.TestCase):
         self.assertEqual(secure_companies.load_encrypted_reference(), {"companies": []})
 
 
+class AutostartTests(unittest.TestCase):
+    """'Start automatically' writes and removes one per-user file; nothing is really installed here."""
+
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.path = os.path.join(folder.name, "autostart-file")
+        path_patch = mock.patch.object(app, "autostart_path", return_value=self.path)
+        path_patch.start()
+        self.addCleanup(path_patch.stop)
+        run_patch = mock.patch.object(app.subprocess, "run")      # no real launchctl
+        self.run_mock = run_patch.start()
+        self.addCleanup(run_patch.stop)
+        self.run_mock.return_value = mock.Mock(returncode=0, stderr="")
+
+    def test_mac_agent_is_written_and_started_at_sign_in(self):
+        with mock.patch.object(app.platform, "system", return_value="Darwin"):
+            app.set_autostart(True)
+            with open(self.path, "rb") as f:
+                agent = app.plistlib.load(f)
+            self.assertTrue(agent["RunAtLoad"])
+            self.assertIn("--no-open", agent["ProgramArguments"])     # must not pop a browser at every sign-in
+            self.assertTrue(agent["ProgramArguments"][1].endswith("app.py"))
+            self.assertEqual(agent["WorkingDirectory"], app.PROJECT_DIR)
+            self.assertTrue(app.autostart_enabled())
+            app.set_autostart(False)
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_mac_refusal_leaves_nothing_behind(self):
+        self.run_mock.return_value = mock.Mock(returncode=5, stderr="denied")
+        with mock.patch.object(app.platform, "system", return_value="Darwin"):
+            with self.assertRaises(ValueError):
+                app.set_autostart(True)
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_windows_startup_script_runs_hidden_in_the_app_folder(self):
+        with mock.patch.object(app.platform, "system", return_value="Windows"):
+            app.set_autostart(True)
+            script = open(self.path, encoding="ascii").read()
+            self.assertIn(app.PROJECT_DIR, script)
+            self.assertIn("app.py", script)
+            self.assertIn("--no-open", script)
+            self.assertTrue(script.rstrip().endswith(", 0, False"))   # window style 0 = hidden
+            app.set_autostart(False)
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_unsupported_system_is_refused(self):
+        with mock.patch.object(app, "autostart_path", return_value=""):
+            with self.assertRaises(ValueError):
+                app.set_autostart(True)
+
+
 if __name__ == "__main__":
     unittest.main()
