@@ -71,6 +71,26 @@ def clean_folder(text: str) -> str:
     return Path(os.path.expanduser(text)).as_posix() if text else ""
 
 
+PICK_PROMPT = "Choose the folder with your scanned files"
+
+
+def pick_folder() -> str:
+    """Show the system's own folder chooser on this computer; '' if the user cancels."""
+    system = platform.system()
+    if system == "Darwin":
+        cmd = ["osascript", "-e", f'POSIX path of (choose folder with prompt "{PICK_PROMPT}")']
+    elif system == "Windows":
+        cmd = ["powershell", "-NoProfile", "-STA", "-Command",
+               "Add-Type -AssemblyName System.Windows.Forms; "
+               "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+               f"$d.Description = '{PICK_PROMPT}'; "
+               "$top = New-Object System.Windows.Forms.Form -Property @{TopMost = $true}; "
+               "if ($d.ShowDialog($top) -eq 'OK') { [Console]::Out.Write($d.SelectedPath) }"]
+    else:
+        raise ValueError("Type the folder path instead; there is no folder chooser on this system.")
+    return clean_folder(subprocess.run(cmd, capture_output=True, text=True).stdout)
+
+
 def project_path(value, default_name: str) -> str:
     return os.path.join(PROJECT_DIR, value or default_name)   # absolute values pass through
 
@@ -263,6 +283,8 @@ class AppHandler(DashboardHandler):
             start_job(body.get("action"), folder)
             if body.get("action") != "signin":
                 save_env("SCAN_FOLDER", folder)
+        elif path == "/api/pick-folder":
+            return {"folder": pick_folder()}
         elif path == "/api/stop":
             if job["running"]:
                 job["proc"].terminate()

@@ -90,7 +90,11 @@
 
     <div class="card">
       <label for="folder">Folder with your scanned files</label>
-      <input type="text" id="folder" spellcheck="false">
+      <div class="row">
+        <input type="text" id="folder" spellcheck="false" style="flex: 1; min-width: 240px"
+               placeholder="Choose a folder, or type or paste its path">
+        <button class="btn" id="browseBtn">Browse…</button>
+      </div>
     </div>
 
     <div class="grid2">
@@ -213,7 +217,7 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b
 // ── State and setup check ──
 async function loadState() {
   appState = await api('/api/state');
-  if (document.activeElement !== $('folder')) $('folder').value = appState.scan_folder;
+  if (!$('folder').value) $('folder').value = appState.scan_folder;   // never overwrite a folder just chosen
   if (document.activeElement !== $('driveLink')) $('driveLink').value = appState.drive_link;
   $('accountStatus').textContent = appState.signed_in ? 'Google account: signed in' : 'Google account: not signed in';
   $('signIn').hidden = appState.signed_in;
@@ -286,6 +290,12 @@ async function poll() {
 }
 document.querySelectorAll('[data-run]').forEach(b => b.onclick = () => run(b.dataset.run));
 $('stopBtn').onclick = () => api('/api/stop', {});
+$('browseBtn').onclick = async () => {
+  $('browseBtn').disabled = true; say('runMsg', '');
+  try { const picked = (await api('/api/pick-folder', {})).folder; if (picked) $('folder').value = picked; }
+  catch (e) { say('runMsg', e.message, 'bad'); }
+  $('browseBtn').disabled = false;
+};
 
 // ── Settings: Drive and Google account ──
 $('saveDrive').onclick = async () => {
