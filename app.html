@@ -35,7 +35,8 @@
   .card h2 { font-size: 16px; margin: 0 0 4px; }
   .card p.hint { color: var(--muted); margin: 0 0 14px; font-size: 14px; }
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .col { min-width: 0; }
   @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } header { gap: 12px; } }
   label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; }
   input[type=text], input[type=search], textarea {
@@ -62,7 +63,7 @@
   .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px;
           background: var(--soft); color: var(--accent); }
   .chip.bad { color: var(--bad); }
-  pre#log { background: var(--log-bg); color: var(--log-text); border-radius: 8px; padding: 14px;
+  pre.log { background: var(--log-bg); color: var(--log-text); border-radius: 8px; padding: 14px;
             margin: 12px 0 0; min-height: 120px; max-height: 420px; overflow: auto;
             font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
   .company { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; padding: 10px 0;
@@ -95,38 +96,35 @@
                placeholder="Choose a folder, or type or paste its path">
         <button class="btn" id="browseBtn">Browse…</button>
       </div>
+      <p class="msg bad" id="runMsg"></p>
     </div>
 
     <div class="grid2">
-      <div class="card">
-        <h2>1 · Rename scanned PDFs</h2>
-        <p class="hint">Reads each letter on this computer and names it
-          "Company - From Sender". Nothing is uploaded.</p>
-        <div class="row">
-          <button class="btn" data-run="rename_preview">Preview names</button>
-          <button class="btn primary" data-run="rename_apply">Apply renames</button>
+      <div class="col">
+        <div class="card">
+          <h2>1 · Rename scanned PDFs</h2>
+          <p class="hint">Reads each letter on this computer and names it
+            "Company - From Sender". Nothing is uploaded.</p>
+          <div class="row">
+            <button class="btn" data-run="rename_preview">Preview names</button>
+            <button class="btn primary" data-run="rename_apply">Apply renames</button>
+          </div>
         </div>
+        <div class="panel" data-group="rename" data-title="Rename output"
+             data-hint="Preview or apply renames and the progress shows here."></div>
       </div>
-      <div class="card">
-        <h2>2 · Upload to Drive</h2>
-        <p class="hint">Puts each file in its company's folder, under this month and today's date.</p>
-        <div class="row">
-          <button class="btn" data-run="upload_preview">Preview upload</button>
-          <button class="btn primary" data-run="upload">Upload</button>
+      <div class="col">
+        <div class="card">
+          <h2>2 · Upload to Drive</h2>
+          <p class="hint">Puts each file in its company's folder, under this month and today's date.</p>
+          <div class="row">
+            <button class="btn" data-run="upload_preview">Preview upload</button>
+            <button class="btn primary" data-run="upload">Upload</button>
+          </div>
         </div>
+        <div class="panel" data-group="upload" data-title="Upload output"
+             data-hint="Preview or start an upload and the progress shows here."></div>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="row" style="justify-content: space-between">
-        <h2 id="jobTitle">Output</h2>
-        <div class="row">
-          <span class="chip" id="jobChip" hidden></span>
-          <button class="btn danger" id="stopBtn" hidden>Stop</button>
-        </div>
-      </div>
-      <p class="msg bad" id="runMsg"></p>
-      <pre id="log">Pick an action above. Its progress shows here.</pre>
     </div>
   </section>
 
@@ -170,6 +168,8 @@
         <button class="btn" id="signIn">Sign in to Google</button>
         <button class="btn danger" id="signOut">Sign out</button>
       </div>
+      <div class="panel" data-group="signin" data-title="Google sign-in" data-plain="1"
+           data-hint="Sign-in progress shows here." hidden></div>
     </div>
 
     <div class="card">
@@ -214,6 +214,23 @@ async function api(path, body) {
 const OFFLINE = 'Drive Organizer isn\'t running. Start it again with the launcher ("Drive Organizer.command" or "Drive Organizer.bat"), then reload this page.';
 function showOffline() { const b = $('setupBanner'); b.textContent = OFFLINE; b.style.display = 'block'; }
 function say(id, text, kind) { const el = $(id); el.textContent = text; el.className = 'msg ' + (kind || ''); }
+
+// ── Output panels: one each for renaming, uploading and Google sign-in ──
+const panels = {};
+document.querySelectorAll('.panel').forEach(box => {
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+  const chip = el('span', 'chip'); chip.hidden = true;
+  const stop = el('button', 'btn danger', 'Stop'); stop.hidden = true;
+  stop.onclick = () => api('/api/stop', {});
+  const head = el('div', 'row'); head.style.justifyContent = 'space-between';
+  const tools = el('div', 'row'); tools.append(chip, stop);
+  head.append(el('h2', '', box.dataset.title), tools);
+  const msg = el('p', 'msg bad'); const log = el('pre', 'log', box.dataset.hint);
+  box.className = box.dataset.plain ? 'panel' : 'card panel';
+  box.append(head, msg, log);
+  panels[box.dataset.group] = { box, chip, stop, msg, log, filled: false };
+});
+const groupOf = action => action.startsWith('rename') ? 'rename' : action.startsWith('upload') ? 'upload' : 'signin';
 
 // ── Tabs ──
 function showTab(name) {
@@ -270,40 +287,42 @@ async function loadState() {
 }
 
 // ── Running actions ──
-let running = false;
+let running = false, activeGroup = 'rename';
 function setButtons(isRunning) {
   running = isRunning;
   document.querySelectorAll('[data-run]').forEach(b => b.disabled = running);
   $('signIn').disabled = running;
-  $('stopBtn').hidden = !running;
+  for (const [group, p] of Object.entries(panels)) p.stop.hidden = !(running && group === activeGroup);
 }
 async function run(action) {
   const folder = $('folder').value.trim();
   if (action === 'upload' && !confirm('Upload the files in\n' + folder + '\nto your Drive folder now?')) return;
   if (action === 'rename_apply' && !confirm('Rename the files in\n' + folder + '\nas shown in the last preview?')) return;
-  say('runMsg', '');
+  const group = groupOf(action), p = panels[group];
+  showTab(group === 'signin' ? 'settings' : 'run');
+  p.box.hidden = false; p.msg.textContent = '';
   try {
     await api('/api/run', { action, folder });
-    showTab('run'); $('log').textContent = ''; seen = 0; poll();
-  } catch (e) { showTab('run'); say('runMsg', e.message, 'bad'); }
+    p.log.textContent = ''; p.filled = true; activeGroup = group; seen = 0; poll();
+  } catch (e) { p.msg.textContent = e.message; }
 }
 async function poll() {
   clearTimeout(pollTimer);
   const job = await api('/api/job?since=' + seen);
   if (!job.action) return;
-  $('jobTitle').textContent = TITLES[job.action] || 'Output';
+  const group = groupOf(job.action), p = panels[group];
+  activeGroup = group; p.box.hidden = false;
+  if (!p.filled) { p.log.textContent = ''; p.filled = true; }      // first output replaces the hint
   if (job.lines.length) {
-    const log = $('log');
-    log.textContent += job.lines.join('\n') + '\n'; seen += job.lines.length; log.scrollTop = log.scrollHeight;
+    p.log.textContent += job.lines.join('\n') + '\n'; seen += job.lines.length; p.log.scrollTop = p.log.scrollHeight;
   }
-  const chip = $('jobChip'); chip.hidden = false;
-  chip.className = 'chip' + (!job.running && job.code !== 0 ? ' bad' : '');
-  chip.textContent = job.running ? 'Running…' : job.code === 0 ? 'Finished' : 'Stopped or failed';
+  p.chip.hidden = false;
+  p.chip.className = 'chip' + (!job.running && job.code !== 0 ? ' bad' : '');
+  p.chip.textContent = (TITLES[job.action] || '') + ' · ' + (job.running ? 'Running…' : job.code === 0 ? 'Finished' : 'Stopped or failed');
   setButtons(job.running);
   if (job.running) pollTimer = setTimeout(poll, 800); else loadState();
 }
 document.querySelectorAll('[data-run]').forEach(b => b.onclick = () => run(b.dataset.run));
-$('stopBtn').onclick = () => api('/api/stop', {});
 $('browseBtn').onclick = async () => {
   $('browseBtn').disabled = true; say('runMsg', '');
   try { const picked = (await api('/api/pick-folder', {})).folder; if (picked) $('folder').value = picked; }
