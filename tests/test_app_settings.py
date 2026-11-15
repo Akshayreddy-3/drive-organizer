@@ -119,6 +119,54 @@ class CompanyListSafetyTests(unittest.TestCase):
         self.assertEqual(secure_companies.load_encrypted_reference(), {"companies": []})
 
 
+class OllamaServerAddressTests(unittest.TestCase):
+    """The address letters' text is sent to: tidy it up, and refuse plain http to the public internet."""
+
+    def test_empty_means_this_computer(self):
+        self.assertEqual(app.clean_ollama_url("   "), "")
+
+    def test_bare_tailscale_address_gets_scheme_and_port(self):
+        self.assertEqual(app.clean_ollama_url("100.101.102.103"), "http://100.101.102.103:11434")
+
+    def test_tidies_spaces_and_trailing_slash(self):
+        self.assertEqual(app.clean_ollama_url(" http://mac-mini:11434/ "), "http://mac-mini:11434")
+
+    def test_private_networks_and_tailscale_names_are_fine(self):
+        for typed in ("192.168.1.5", "10.0.0.7:11434", "mac-mini.tail1234.ts.net", "localhost", "studio.local"):
+            self.assertTrue(app.clean_ollama_url(typed).startswith("http://"), typed)
+
+    def test_plain_http_to_the_public_internet_is_refused(self):
+        for typed in ("http://8.8.8.8:11434", "http://ollama.example.com", "93.184.216.34"):
+            with self.assertRaises(ValueError, msg=typed):
+                app.clean_ollama_url(typed)
+
+    def test_https_to_a_public_host_is_allowed(self):
+        self.assertEqual(app.clean_ollama_url("https://ollama.example.com"), "https://ollama.example.com")
+
+    def test_not_an_address_is_refused(self):
+        for typed in ("ftp://100.64.0.1", "http://100.64.0.1:11434/api/chat", "http://x:99999", "http://", "http:///"):
+            with self.assertRaises(ValueError, msg=typed):
+                app.clean_ollama_url(typed)
+
+    def test_saved_to_env_and_removed_when_emptied(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(app, "ENV_FILE", os.path.join(folder, ".env")):
+            open(app.ENV_FILE, "w").close()
+            set_key(app.ENV_FILE, "COMPANIES_KEY", "kept")
+            self.assertEqual(app.set_ollama_url("100.64.0.1"), "http://100.64.0.1:11434")
+            self.assertEqual(dotenv_values(app.ENV_FILE)["OLLAMA_URL"], "http://100.64.0.1:11434")
+            self.assertEqual(app.set_ollama_url(""), "")
+            values = dotenv_values(app.ENV_FILE)
+            self.assertNotIn("OLLAMA_URL", values)
+            self.assertEqual(values["COMPANIES_KEY"], "kept")        # other settings untouched
+
+    def test_refused_address_leaves_the_setting_alone(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(app, "ENV_FILE", os.path.join(folder, ".env")):
+            app.set_ollama_url("100.64.0.1")
+            with self.assertRaises(ValueError):
+                app.set_ollama_url("http://8.8.8.8")
+            self.assertEqual(dotenv_values(app.ENV_FILE)["OLLAMA_URL"], "http://100.64.0.1:11434")
+
+
 class AutostartTests(unittest.TestCase):
     """'Start automatically' writes and removes one per-user file; nothing is really installed here."""
 

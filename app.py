@@ -17,6 +17,7 @@ in .env, the company list encrypted in companies_reference.enc.
 import argparse
 import csv
 import io
+import ipaddress
 import json
 import os
 import platform
@@ -31,7 +32,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values, set_key, unset_key
 
 import secure_companies
 from dashboard_server import DashboardHandler, PROJECT_DIR, load_tracker_data
@@ -58,6 +59,56 @@ def drive_folder_id(link: str):
     m = (re.search(r"/folders/([\w-]+)", link) or re.search(r"[?&]id=([\w-]+)", link)
          or re.fullmatch(r"([\w-]{10,})", link))
     return m.group(1) if m else None
+
+
+DEFAULT_OLLAMA = "http://localhost:11434"
+
+
+def is_private_host(host: str) -> bool:
+    """True for addresses that stay on this computer or a private network: localhost, home/office
+    networks, Tailscale (100.64.0.0/10 and *.ts.net), and plain machine names like 'mac-mini'."""
+    if host == "localhost" or host.endswith((".local", ".ts.net")) or ("." not in host and ":" not in host):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip in ipaddress.ip_network("100.64.0.0/10")
+
+
+def clean_ollama_url(text: str) -> str:
+    """The server address in the form the renamer expects, or '' for 'use Ollama on this computer'.
+    Raises ValueError with a readable message for anything it won't send letter text to."""
+    text = text.strip()
+    if not text:
+        return ""
+    if "://" not in text:
+        text = "http://" + text
+    try:
+        parts = urlparse(text)
+        port = parts.port
+    except ValueError:
+        raise ValueError("That doesn't look like a server address. Example: http://100.101.102.103:11434") from None
+    host = parts.hostname
+    if parts.scheme not in ("http", "https") or not host or parts.path not in ("", "/") or parts.query:
+        raise ValueError("That doesn't look like a server address. Example: http://100.101.102.103:11434")
+    if parts.scheme == "http" and not is_private_host(host):
+        raise ValueError("That is an address on the public internet, and plain http would send your letters' "
+                         "text unencrypted. Use the server's Tailscale address (starts with 100.) or name instead.")
+    if port is None and parts.scheme == "http":
+        port = 11434
+    shown = f"[{host}]" if ":" in host else host
+    return f"{parts.scheme}://{shown}" + (f":{port}" if port else "")
+
+
+def set_ollama_url(text: str) -> str:
+    """Save (or, when empty, remove) the server address in .env; returns what was saved."""
+    url = clean_ollama_url(text)
+    if url:
+        save_env("OLLAMA_URL", url)
+    elif os.path.exists(ENV_FILE):
+        unset_key(ENV_FILE, "OLLAMA_URL")
+    return url
 
 
 def scan_folder() -> str:
@@ -226,7 +277,8 @@ def state() -> dict:
         "companies_error": companies_error,
         "has_credentials": os.path.exists(project_path(e.get("CREDENTIALS_FILE"), "credentials.json")),
         "signed_in": os.path.exists(project_path(e.get("TOKEN_FILE"), "token.json")),
-        "ollama": ollama_status(e.get("OLLAMA_URL") or "http://localhost:11434"),
+        "ollama_url": e.get("OLLAMA_URL") or "",
+        "ollama": ollama_status(e.get("OLLAMA_URL") or DEFAULT_OLLAMA),
     }
 
 
@@ -341,6 +393,9 @@ class AppHandler(DashboardHandler):
             start_job(body.get("action"), folder)
             if body.get("action") != "signin":
                 save_env("SCAN_FOLDER", folder)
+        elif path == "/api/ollama":
+            url = set_ollama_url(str(body.get("url", "")))
+            return {"ok": True, "url": url, "status": ollama_status(url or DEFAULT_OLLAMA)}
         elif path == "/api/autostart":
             set_autostart(bool(body.get("on")))
         elif path == "/api/pick-folder":

@@ -178,6 +178,21 @@
     </div>
 
     <div class="card">
+      <h2>Reading model server</h2>
+      <p class="hint">Renaming asks a small language model to find each letter's sender. Leave this empty to use
+        Ollama on this computer, or paste the address of another computer that runs it (for example a Mac mini
+        on your Tailscale network: <code>http://100.101.102.103:11434</code>). Only the letter's text and the
+        name of the company it is addressed to are sent there, never the PDF.</p>
+      <label for="ollamaUrl">Server address</label>
+      <div class="row">
+        <input type="text" id="ollamaUrl" placeholder="Empty = Ollama on this computer"
+               style="flex: 1; min-width: 240px" spellcheck="false">
+        <button class="btn primary" id="saveOllama">Save and test</button>
+      </div>
+      <p class="msg" id="ollamaMsg"></p>
+    </div>
+
+    <div class="card">
       <div class="row" style="justify-content: space-between">
         <h2>Your companies <span class="chip" id="companyCount"></span></h2>
         <div class="row">
@@ -280,6 +295,7 @@ async function loadState() {
   appState = await api('/api/state');
   if (!$('folder').value) $('folder').value = appState.scan_folder;   // never overwrite a folder just chosen
   if (document.activeElement !== $('driveLink')) $('driveLink').value = appState.drive_link;
+  if (document.activeElement !== $('ollamaUrl')) $('ollamaUrl').value = appState.ollama_url;
   $('accountStatus').textContent = appState.signed_in ? 'Google account: signed in' : 'Google account: not signed in';
   $('autoCard').hidden = !appState.can_autostart;
   $('autoBtn').textContent = appState.autostart ? 'Turn off' : 'Turn on';
@@ -295,10 +311,13 @@ async function loadState() {
       'Ask the person who shared this app for credentials.json and put it in the app folder.'],
     [appState.signed_in, 'Google account', 'Press "Sign in to Google" below.'],
   ];
-  items.push([appState.ollama === 'ready', 'Local reading model',
+  const remote = !!appState.ollama_url;
+  items.push([appState.ollama === 'ready', remote ? 'Reading model (server)' : 'Local reading model',
     appState.ollama === 'offline'
-      ? 'Install Ollama from ollama.com and open it (needed for renaming only).'
-      : 'Open Terminal and run: ollama pull ' + appState.local_model]);
+      ? (remote ? 'Can\'t reach ' + appState.ollama_url + '. Is that computer on, and is Tailscale connected on both?'
+                : 'Install Ollama from ollama.com and open it (needed for renaming only).')
+      : (remote ? 'On the server, open Terminal and run: ollama pull ' : 'Open Terminal and run: ollama pull ') + appState.local_model,
+    remote ? 'Ready on ' + appState.ollama_url : undefined]);
   const list = $('checks'); list.replaceChildren();
   for (const [ok, title, todo, detail] of items) {
     const li = document.createElement('li'); li.className = ok ? 'ok' : 'todo';
@@ -369,6 +388,19 @@ $('browseBtn').onclick = async () => {
 $('saveDrive').onclick = async () => {
   try { await api('/api/settings', { drive_link: $('driveLink').value }); say('driveMsg', 'Saved.', 'good'); loadState(); }
   catch (e) { say('driveMsg', e.message, 'bad'); }
+};
+$('saveOllama').onclick = async () => {
+  say('ollamaMsg', 'Checking…');
+  try {
+    const r = await api('/api/ollama', { url: $('ollamaUrl').value });
+    $('ollamaUrl').value = r.url;
+    const where = r.url ? 'the server' : 'Ollama on this computer';
+    if (r.status === 'ready') say('ollamaMsg', 'Saved. Connected to ' + where + '; the model is ready.', 'good');
+    else if (r.status === 'no-model') say('ollamaMsg', 'Saved. Reached ' + where + ', but the model "' + appState.local_model +
+      '" isn\'t downloaded there. On that computer run: ollama pull ' + appState.local_model, 'bad');
+    else say('ollamaMsg', 'Saved, but ' + where + ' can\'t be reached yet. Check that it is on, and that Tailscale is connected on both computers.', 'bad');
+    loadState();
+  } catch (e) { say('ollamaMsg', e.message, 'bad'); }
 };
 $('autoBtn').onclick = async () => {
   try {
