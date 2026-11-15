@@ -64,7 +64,7 @@
           background: var(--soft); color: var(--accent); }
   .chip.bad { color: var(--bad); }
   pre.log { background: var(--log-bg); color: var(--log-text); border-radius: 8px; padding: 14px;
-            margin: 12px 0 0; min-height: 120px; max-height: 420px; overflow: auto;
+            margin: 12px 0 0; min-height: 120px; overflow-wrap: anywhere;
             font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
   .company { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: 10px; padding: 10px 0;
              border-top: 1px solid var(--line); align-items: start; }
@@ -72,6 +72,11 @@
   iframe { width: 100%; height: calc(100vh - 110px); border: 1px solid var(--line); border-radius: 10px;
            background: var(--panel); }
   section#history { max-width: none; }
+  .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+             padding: 24px; background: rgba(0, 0, 0, 0.55); }
+  .dialog { max-width: 460px; margin: 0; }
+  .dialog .row { justify-content: flex-end; margin-top: 4px; }
+  .dialog code { word-break: break-all; }
 </style>
 </head>
 <body>
@@ -192,6 +197,17 @@
   </section>
 </main>
 
+<div class="overlay" id="confirmBox" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" hidden>
+  <div class="card dialog">
+    <h2 id="confirmTitle"></h2>
+    <p class="hint" id="confirmText"></p>
+    <div class="row">
+      <button class="btn" id="confirmNo">Cancel</button>
+      <button class="btn primary" id="confirmYes"></button>
+    </div>
+  </div>
+</div>
+
 <script>
 const $ = id => document.getElementById(id);
 const TITLES = { rename_preview: 'Preview names', rename_apply: 'Apply renames',
@@ -214,6 +230,23 @@ async function api(path, body) {
 const OFFLINE = 'Drive Organizer isn\'t running. Start it again with the launcher ("Drive Organizer.command" or "Drive Organizer.bat"), then reload this page.';
 function showOffline() { const b = $('setupBanner'); b.textContent = OFFLINE; b.style.display = 'block'; }
 function say(id, text, kind) { const el = $(id); el.textContent = text; el.className = 'msg ' + (kind || ''); }
+
+// ── Confirmation dialog: nothing irreversible starts without it; Cancel is the default ──
+function askConfirm(title, text, yesLabel) {
+  return new Promise(resolve => {
+    const box = $('confirmBox'), yes = $('confirmYes'), no = $('confirmNo');
+    $('confirmTitle').textContent = title; $('confirmText').textContent = text; yes.textContent = yesLabel;
+    const onKey = e => {
+      if (e.key === 'Escape') done(false);
+      if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === no ? yes : no).focus(); }   // stay inside the dialog
+    };
+    const done = answer => { box.hidden = true; document.removeEventListener('keydown', onKey); resolve(answer); };
+    yes.onclick = () => done(true); no.onclick = () => done(false);
+    box.onclick = e => { if (e.target === box) done(false); };          // a click outside cancels
+    document.addEventListener('keydown', onKey);
+    box.hidden = false; no.focus();
+  });
+}
 
 // ── Output panels: one each for renaming, uploading and Google sign-in ──
 const panels = {};
@@ -295,9 +328,11 @@ function setButtons(isRunning) {
   for (const [group, p] of Object.entries(panels)) p.stop.hidden = !(running && group === activeGroup);
 }
 async function run(action) {
-  const folder = $('folder').value.trim();
-  if (action === 'upload' && !confirm('Upload the files in\n' + folder + '\nto your Drive folder now?')) return;
-  if (action === 'rename_apply' && !confirm('Rename the files in\n' + folder + '\nas shown in the last preview?')) return;
+  const folder = $('folder').value.trim() || appState.scan_folder || '';
+  if (action === 'upload' && !(await askConfirm('Upload to Drive?',
+      'Every file in ' + folder + ' will be uploaded to your Drive folder as soon as you confirm.', 'Yes, upload'))) return;
+  if (action === 'rename_apply' && !(await askConfirm('Apply the renames?',
+      'The PDFs in ' + folder + ' will be renamed on this computer as shown in your last preview.', 'Yes, rename'))) return;
   const group = groupOf(action), p = panels[group];
   showTab(group === 'signin' ? 'settings' : 'run');
   p.box.hidden = false; p.msg.textContent = '';
@@ -314,7 +349,7 @@ async function poll() {
   activeGroup = group; p.box.hidden = false;
   if (!p.filled) { p.log.textContent = ''; p.filled = true; }      // first output replaces the hint
   if (job.lines.length) {
-    p.log.textContent += job.lines.join('\n') + '\n'; seen += job.lines.length; p.log.scrollTop = p.log.scrollHeight;
+    p.log.textContent += job.lines.join('\n') + '\n'; seen += job.lines.length;
   }
   p.chip.hidden = false;
   p.chip.className = 'chip' + (!job.running && job.code !== 0 ? ' bad' : '');
