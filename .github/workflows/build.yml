@@ -35,15 +35,29 @@ jobs:
         run: |
           python -m PyInstaller packaging/drive_organizer.spec --noconfirm
           choco install innosetup --no-progress -y
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows_installer.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$((Get-Content packaging\VERSION).Trim())" packaging\windows_installer.iss
 
-      - name: Check the packaged app can run its own scripts
-        shell: bash
+      - name: Test the packaged app end to end (Mac)
+        if: runner.os == 'macOS'
+        timeout-minutes: 25
+        run: python packaging/smoke_test.py "dist/Drive Organizer.app/Contents/MacOS/Drive Organizer"
+
+      - name: Install it, check the shortcuts, test the installed app end to end, uninstall (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 25
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then app="dist/Drive Organizer.app/Contents/MacOS/Drive Organizer"
-          else app="dist/Drive Organizer/Drive Organizer.exe"; fi
-          "$app" ai_pdf_renamer.py --help | grep -- "--dry-run"
-          "$app" run_upload.py --help | grep -- "--preview"
+          Start-Process -Wait dist\Drive-Organizer-Setup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=desktopicon'
+          $folder = "$env:LOCALAPPDATA\Programs\Drive Organizer"
+          $exe = "$folder\Drive Organizer.exe"
+          if (-not (Test-Path $exe)) { throw "The installer did not install the app" }
+          if (-not (Test-Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Drive Organizer.lnk'))) { throw "No Desktop shortcut" }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Drive Organizer.lnk")) { throw "No Start menu shortcut" }
+          python packaging/smoke_test.py $exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Start-Process -Wait "$folder\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+          foreach ($i in 1..30) { if (-not (Test-Path $exe)) { break }; Start-Sleep 1 }
+          if (Test-Path $exe) { throw "The uninstaller left the app behind" }
+          if (-not (Test-Path "$env:APPDATA\Drive Organizer\.env")) { throw "Uninstalling removed the user's settings" }
 
       - uses: actions/upload-artifact@v4
         with:

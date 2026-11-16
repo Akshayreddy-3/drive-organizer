@@ -158,7 +158,11 @@ def set_autostart(on: bool):
         raise ValueError("Move Drive Organizer into your Applications folder and open it from there first.")
     if platform.system() == "Darwin":
         service = f"gui/{os.getuid()}/{LAUNCH_LABEL}"
-        subprocess.run(["launchctl", "bootout", service], capture_output=True)     # replace any older copy
+        # A copy that macOS itself started at sign-in must not unload its own entry: that would stop
+        # it in the middle of this request. It keeps running; the change applies from the next sign-in.
+        started_by_macos = os.environ.get("XPC_SERVICE_NAME") == LAUNCH_LABEL
+        if not started_by_macos:
+            subprocess.run(["launchctl", "bootout", service], capture_output=True)     # replace any older copy
         if on:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "wb") as f:
@@ -171,9 +175,9 @@ def set_autostart(on: bool):
                     "StandardOutPath": os.path.expanduser("~/Library/Logs/DriveOrganizer.log"),
                     "StandardErrorPath": os.path.expanduser("~/Library/Logs/DriveOrganizer.log"),
                 }, f)
-            started = subprocess.run(["launchctl", "bootstrap", f"gui/{os.getuid()}", path],
-                                     capture_output=True, text=True)
-            if started.returncode:
+            started = None if started_by_macos else subprocess.run(
+                ["launchctl", "bootstrap", f"gui/{os.getuid()}", path], capture_output=True, text=True)
+            if started and started.returncode:
                 os.remove(path)
                 raise ValueError("macOS wouldn't start it: " + (started.stderr.strip() or "unknown error"))
         elif os.path.exists(path):
@@ -390,6 +394,13 @@ def run_script(argv: list):
         runpy.run_module(os.path.basename(argv[0])[:-3], run_name="__main__")
 
 
+class AppServer(ThreadingHTTPServer):
+    """Only one copy of the app may hold the port, so a second start fails and hands over to the
+    running one. Windows' "reuse address" and newer Pythons' "reuse port" would let it share."""
+    allow_reuse_address = platform.system() != "Windows"
+    allow_reuse_port = False
+
+
 # ── HTTP ─────────────────────────────────────────────────────────────────────
 class AppHandler(DashboardHandler):
     """The app's pages and API, on top of the tracker dashboard's routes."""
@@ -493,7 +504,7 @@ def main():
 
     url = f"http://localhost:{args.port}"
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), AppHandler)   # this computer only
+        server = AppServer(("127.0.0.1", args.port), AppHandler)   # this computer only
     except OSError:
         print(f"Drive Organizer is already running at {url}")
         if not args.no_open:

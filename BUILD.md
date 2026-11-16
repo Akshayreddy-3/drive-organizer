@@ -49,6 +49,18 @@ page, which is the one link to share.
 
     pip install -r requirements.txt pyinstaller
     python -m PyInstaller packaging/drive_organizer.spec --noconfirm
-    iscc packaging\windows_installer.iss      &rem → dist\Drive-Organizer-Setup.exe
+    iscc /DAppVersion=1.0 packaging\windows_installer.iss      &rem → dist\Drive-Organizer-Setup.exe
 
 The recipes are in `packaging/` and `.github/workflows/build.yml`.
+
+## Testing a build
+
+`packaging/smoke_test.py` drives the packaged app the way the page does, with a stand-in model
+server and made-up letters: settings, company list, rename preview and apply (with the vision
+fallback), Stop, a second start, and Quit. GitHub runs it on every build, on the Mac app and on
+the Windows app after installing it with the installer; a build that fails it is not published.
+
+    python packaging/smoke_test.py "dist/Drive Organizer.app/Contents/MacOS/Drive Organizer"
+
+It does not cover uploading to Google Drive (that needs an account), the folder chooser, or the
+first-open warnings.

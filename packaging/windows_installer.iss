@@ -1,10 +1,14 @@
 ; Inno Setup recipe for the Windows installer: dist\Drive-Organizer-Setup.exe
-; Build after PyInstaller has made dist\Drive Organizer\ :   iscc packaging\windows_installer.iss
+; Build after PyInstaller has made dist\Drive Organizer\ :   iscc /DAppVersion=1.0 packaging\windows_installer.iss
+
+#ifndef AppVersion
+  #define AppVersion "dev"
+#endif
 
 [Setup]
 AppId={{6C0E5B7B-52A4-4C0B-9D0E-3B7F1A2D9E41}
 AppName=Drive Organizer
-AppVersion=1.0
+AppVersion={#AppVersion}
 ; Installs for this user only, so no administrator password is needed
 PrivilegesRequired=lowest
 DefaultDirName={autopf}\Drive Organizer

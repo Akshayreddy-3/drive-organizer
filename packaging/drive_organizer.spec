@@ -8,6 +8,7 @@ from PyInstaller.utils.hooks import collect_all
 
 ROOT = os.path.dirname(SPECPATH)
 MAC = sys.platform == "darwin"
+VERSION = open(os.path.join(ROOT, "packaging", "VERSION")).read().strip()
 
 # The app's pages; desktop_file_counter.py is looked up as a file by run_upload.py.
 datas = [(os.path.join(ROOT, name), ".") for name in ("app.html", "tracker.html", "desktop_file_counter.py")]
@@ -29,7 +30,7 @@ coll = COLLECT(exe, a.binaries, a.datas, name="Drive Organizer")
 if MAC:
     BUNDLE(coll, name="Drive Organizer.app", bundle_identifier="com.driveorganizer.app",
            info_plist={
-               "CFBundleShortVersionString": "1.0",
+               "CFBundleShortVersionString": VERSION,
                "LSUIElement": True,          # runs in the background: no Dock icon, the app is a browser page
                "NSDesktopFolderUsageDescription": "Drive Organizer reads the scanned files in the folder you choose.",
                "NSDocumentsFolderUsageDescription": "Drive Organizer reads the scanned files in the folder you choose.",
