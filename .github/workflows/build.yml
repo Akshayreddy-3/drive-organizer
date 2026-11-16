@@ -1,7 +1,6 @@
 # Builds the packaged apps: a Mac disk image and a Windows installer.
 # Runs on every push (free on a public repository), or when you press "Run workflow" on GitHub.
-# A version tag like v1.0 also puts both files in a draft on the repository's Releases page; press Publish there
-# when you are happy with them, and that page is the link to share.
+# A version tag like v1.0 also publishes both files on the repository's Releases page, which is the link to share.
 name: Build apps
 
 on:
@@ -53,11 +52,16 @@ jobs:
             dist/Drive-Organizer-Mac.dmg
             dist/Drive-Organizer-Setup.exe
 
-      - name: Add to a draft on the Releases page
+      - name: Publish on the Releases page
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          body: |
+            **Mac (Apple silicon):** download `Drive-Organizer-Mac.dmg`, open it, and drag Drive Organizer onto Applications. The first open is blocked once: go to System Settings > Privacy & Security and click "Open Anyway".
+
+            **Windows:** download and run `Drive-Organizer-Setup.exe`. On the blue warning box, click "More info", then "Run anyway".
+
+            Nothing else to install: Python and everything the app needs are inside. Setup continues in the app's Settings page.
           files: |
             dist/Drive-Organizer-Mac.dmg
             dist/Drive-Organizer-Setup.exe
