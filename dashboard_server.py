@@ -26,9 +26,11 @@ from urllib.parse import urlparse, parse_qs
 # Add project root to path so we can import DataTracker
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# The path to tracker_data.json (same directory as this script)
+from utils.platform import data_dir
+
+# The app's own pages live next to this script; tracker_data.json lives with the user's data
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(PROJECT_DIR, "tracker_data.json")
+DATA_FILE = os.path.join(data_dir(), "tracker_data.json")
 
 
 def load_tracker_data():

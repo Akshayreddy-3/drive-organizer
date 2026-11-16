@@ -19,7 +19,6 @@ companies_reference.json
 companies_reference.enc
 *.enc
 tracker_data.json
-tracker.html
 .ai_rename_cache.json
 
 # IDE
@@ -37,3 +36,6 @@ Thumbs.db
 
 # Share zip (scripts/make_share_zip.py)
 dist/
+
+# Packaged-app build output (see BUILD.md)
+build/

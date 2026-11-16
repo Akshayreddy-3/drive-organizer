@@ -2,8 +2,8 @@
 """
 app.py — Drive Organizer app (runs in your browser, on this computer only)
 
-Start it with the launcher ("Drive Organizer.command" on Mac, "Drive Organizer.bat"
-on Windows) or:  python3 app.py
+Start it with the packaged app (see BUILD.md), the launcher ("Drive Organizer.command"
+on Mac, "Drive Organizer.bat" on Windows) or:  python3 app.py
 
 Pages:
   Run       — rename scanned PDFs, upload to Drive (each with a preview first)
@@ -23,6 +23,7 @@ import os
 import platform
 import plistlib
 import re
+import runpy
 import subprocess
 import sys
 import threading
@@ -36,9 +37,11 @@ from dotenv import dotenv_values, set_key, unset_key
 
 import secure_companies
 from dashboard_server import DashboardHandler, PROJECT_DIR, load_tracker_data
-from utils.platform import get_desktop_path, setup_encoding
+from utils.platform import data_dir, get_desktop_path, setup_encoding
 
-ENV_FILE = os.path.join(PROJECT_DIR, ".env")
+FROZEN = getattr(sys, "frozen", False)   # True in the packaged app (see BUILD.md), False when run from source
+DATA_DIR = data_dir()                    # this user's settings and data; the project folder when run from source
+ENV_FILE = os.path.join(DATA_DIR, ".env")
 LOCAL_MODEL = "qwen3:4b"          # keep in sync with LOCAL_MODEL in ai_pdf_renamer.py
 
 
@@ -141,11 +144,18 @@ def autostart_enabled() -> bool:
     return bool(path) and os.path.exists(path)
 
 
+def app_command() -> list:
+    """How to start this app: the packaged program itself, or python + app.py from source."""
+    return [sys.executable] if FROZEN else [sys.executable, os.path.join(PROJECT_DIR, "app.py")]
+
+
 def set_autostart(on: bool):
     """Turn 'start when I sign in' on or off for this user only (no administrator needed)."""
     path = autostart_path()
     if not path:
         raise ValueError("Starting automatically isn't available on this system.")
+    if on and "/AppTranslocation/" in sys.executable:     # macOS runs a just-downloaded app from a temporary copy
+        raise ValueError("Move Drive Organizer into your Applications folder and open it from there first.")
     if platform.system() == "Darwin":
         service = f"gui/{os.getuid()}/{LAUNCH_LABEL}"
         subprocess.run(["launchctl", "bootout", service], capture_output=True)     # replace any older copy
@@ -154,8 +164,8 @@ def set_autostart(on: bool):
             with open(path, "wb") as f:
                 plistlib.dump({
                     "Label": LAUNCH_LABEL,
-                    "ProgramArguments": [sys.executable, os.path.join(PROJECT_DIR, "app.py"), "--no-open"],
-                    "WorkingDirectory": PROJECT_DIR,
+                    "ProgramArguments": app_command() + ["--no-open"],
+                    "WorkingDirectory": DATA_DIR,
                     "RunAtLoad": True,
                     "KeepAlive": {"SuccessfulExit": False},      # restart if it crashes, not if it quits
                     "StandardOutPath": os.path.expanduser("~/Library/Logs/DriveOrganizer.log"),
@@ -169,9 +179,12 @@ def set_autostart(on: bool):
         elif os.path.exists(path):
             os.remove(path)
     elif on:
-        pythonw = sys.executable[:-len("python.exe")] + "pythonw.exe" if sys.executable.lower().endswith("python.exe") else sys.executable
-        script = (f'Set s = CreateObject("WScript.Shell")\r\ns.CurrentDirectory = "{PROJECT_DIR}"\r\n'
-                  f's.Run """{pythonw}"" ""app.py"" --no-open", 0, False\r\n')   # 0 = no window
+        command = app_command()
+        if command[0].lower().endswith("python.exe"):     # from source: pythonw shows no window
+            command[0] = command[0][:-len("python.exe")] + "pythonw.exe"
+        quoted = " ".join(f'""{part}""' for part in command)
+        script = (f'Set s = CreateObject("WScript.Shell")\r\ns.CurrentDirectory = "{DATA_DIR}"\r\n'
+                  f's.Run "{quoted} --no-open", 0, False\r\n')   # 0 = no window
         with open(path, "w", encoding="ascii", newline="") as f:
             f.write(script)
     elif os.path.exists(path):
@@ -195,11 +208,25 @@ def pick_folder() -> str:
                "if ($d.ShowDialog($top) -eq 'OK') { [Console]::Out.Write($d.SelectedPath) }"]
     else:
         raise ValueError("Type the folder path instead; there is no folder chooser on this system.")
-    return clean_folder(subprocess.run(cmd, capture_output=True, text=True).stdout)
+    return clean_folder(subprocess.run(cmd, capture_output=True, text=True,
+                                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout)
 
 
 def project_path(value, default_name: str) -> str:
-    return os.path.join(PROJECT_DIR, value or default_name)   # absolute values pass through
+    return os.path.join(DATA_DIR, value or default_name)   # absolute values pass through
+
+
+def save_credentials(text: str):
+    """Save the Google access file (credentials.json) chosen in Settings."""
+    problem = "That isn't a Google access file. Choose the credentials.json you were given."
+    try:
+        data = json.loads(text)
+    except ValueError:
+        raise ValueError(problem) from None
+    if not isinstance(data, dict) or not {"installed", "web"} & set(data):
+        raise ValueError(problem)
+    with open(project_path(env().get("CREDENTIALS_FILE"), "credentials.json"), "w", encoding="utf-8") as f:
+        f.write(text)
 
 
 # ── Company list ─────────────────────────────────────────────────────────────
@@ -312,7 +339,7 @@ def start_job(action: str, folder: str):
         # .env is re-read here so a setting saved a moment ago applies to this run
         child_env = {**os.environ, **{k: v for k, v in env().items() if v is not None},
                      "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
-        proc = subprocess.Popen([sys.executable] + ACTIONS[action](folder), cwd=PROJECT_DIR,
+        proc = subprocess.Popen([sys.executable] + ACTIONS[action](folder), cwd=DATA_DIR,
                                 env=child_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
         job.update(action=action, lines=[], running=True, code=None, proc=proc)
@@ -323,6 +350,44 @@ def start_job(action: str, folder: str):
         job.update(code=proc.wait(), running=False)
 
     threading.Thread(target=collect, daemon=True).start()
+
+
+def quit_app():
+    """Stop the app. The packaged app has no window to close, so the page has a Quit button."""
+    if job["running"]:
+        job["proc"].terminate()
+    os._exit(0)
+
+
+def serve_as_mac_app(server, url: str):
+    """Packaged Mac app: serve in the background and let macOS tell us when the app is opened
+    again while it is already running, so a second double-click brings the page back."""
+    from AppKit import NSApplication, NSObject
+
+    class Delegate(NSObject):
+        def applicationShouldHandleReopen_hasVisibleWindows_(self, app, has_windows):
+            webbrowser.open(url)
+            return True
+
+        def applicationWillTerminate_(self, notification):
+            if job["running"]:
+                job["proc"].terminate()
+
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    app = NSApplication.sharedApplication()
+    delegate = Delegate.alloc().init()
+    app.setDelegate_(delegate)
+    app.run()
+
+
+def run_script(argv: list):
+    """Packaged app only: there is no separate python, so the app re-runs itself to run one
+    of its own scripts ("ai_pdf_renamer.py <folder> --dry-run") or a one-line command ("-c ...")."""
+    if argv[0] == "-c":
+        exec(argv[1], {"__name__": "__main__"})
+    else:
+        sys.argv = argv
+        runpy.run_module(os.path.basename(argv[0])[:-3], run_name="__main__")
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -396,6 +461,10 @@ class AppHandler(DashboardHandler):
         elif path == "/api/ollama":
             url = set_ollama_url(str(body.get("url", "")))
             return {"ok": True, "url": url, "status": ollama_status(url or DEFAULT_OLLAMA)}
+        elif path == "/api/credentials":
+            save_credentials(str(body.get("text", "")))
+        elif path == "/api/quit":
+            threading.Timer(0.3, quit_app).start()       # after this answer has been sent
         elif path == "/api/autostart":
             set_autostart(bool(body.get("on")))
         elif path == "/api/pick-folder":
@@ -435,6 +504,8 @@ def main():
     print("     Keep this window open while you use the app. Close it (or press Ctrl+C) to quit.\n")
     if not args.no_open:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+    if FROZEN and platform.system() == "Darwin":
+        return serve_as_mac_app(server, url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -444,4 +515,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if FROZEN and len(sys.argv) > 1 and (sys.argv[1] == "-c" or sys.argv[1].endswith(".py")):
+        run_script(sys.argv[1:])
+    else:
+        main()

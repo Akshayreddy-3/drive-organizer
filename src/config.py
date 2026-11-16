@@ -67,7 +67,8 @@ load_dotenv()
 # and they'll work no matter where you run the script from.
 # The underscore prefix (_BASE_DIR) means it's a "private" variable —
 # only used inside this file, not meant to be imported by other files.
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from utils.platform import data_dir
+_BASE_DIR = data_dir()   # the project root when run from source; the user's data folder in the packaged app
 
 # Path to the Google OAuth credentials file.
 # This file is downloaded from Google Cloud Console and contains your

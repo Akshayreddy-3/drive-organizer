@@ -5,16 +5,37 @@ Provides helper functions for running the Drive Organizer on
 both macOS and Windows without code changes.
 
 Functions:
+    data_dir()         → Folder for this user's settings and data
     get_desktop_path() → Path to the user's Desktop folder
     setup_encoding()   → Fix emoji/unicode output on Windows terminals
 
 Author: Akshay Reddy
 """
 
+import os
 import sys
 import io
 import platform
 from pathlib import Path
+
+
+def data_dir() -> str:
+    """
+    Folder for this user's settings and data (.env, Google sign-in, company list, history).
+
+    - Run from source: the project folder, as always.
+    - Packaged app: the user's own app-data folder, so the data survives app updates
+      (macOS: ~/Library/Application Support/Drive Organizer, Windows: %APPDATA%\\Drive Organizer).
+    """
+    if not getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if platform.system() == "Windows":
+        base = os.environ.get("APPDATA") or str(Path.home())
+    else:
+        base = str(Path.home() / "Library" / "Application Support")
+    path = os.path.join(base, "Drive Organizer")
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def get_desktop_path() -> Path:

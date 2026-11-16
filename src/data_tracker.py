@@ -2,6 +2,8 @@ import json
 import os
 from datetime import datetime
 
+from utils.platform import data_dir
+
 class DataTracker:
     """
     DataTracker handles persisting upload history, folder structures,
@@ -11,8 +13,7 @@ class DataTracker:
     
     def __init__(self, storage_path=None):
         # Default: project root, where dashboard_server.py reads it — not the current directory
-        self.storage_path = storage_path or os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tracker_data.json")
+        self.storage_path = storage_path or os.path.join(data_dir(), "tracker_data.json")
         self.data = self._load_data()
 
     def _load_data(self):

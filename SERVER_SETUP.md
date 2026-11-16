@@ -1,7 +1,9 @@
 # Run the model on a cloud server (no Ollama on your PCs)
 
 The PDF renamer does OCR and company matching on your PC. Only the **letter text** is sent to
-your own server, which runs the model and replies with the sender's name. PDFs never leave your PC.
+your own server, which runs the model and replies with the sender's name. If the text does not
+show the sender and the server has the vision model (`ollama pull gemma4`), pictures of the first
+two pages are sent as well, so the model can read a logo or stamp.
 
 ```
  Your PC (scan → OCR → text) ──Tailscale, encrypted──▶ Cloud server (Ollama + qwen3:4b)

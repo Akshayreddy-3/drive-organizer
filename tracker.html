@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drive Organizer | Dashboard</title>
+    <meta name="description"
+        content="Track and verify your Google Drive file uploads with the Drive Organizer dashboard.">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* ================================================================
+           DESIGN SYSTEM
+           ================================================================ */
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f1f5f9;
+            --accent-1: #4f46e5;
+            --accent-2: #9333ea;
+            --accent-3: #0ea5e9;
+            --accent-green: #059669;
+            --accent-amber: #d97706;
+            --accent-red: #dc2626;
+            --text-main: #0f172a;
+            --text-secondary: #475569;
+            --text-dim: #64748b;
+            --glass-border: #e2e8f0;
+            --glass-border-hover: #cbd5e1;
+            --sidebar-width: 260px;
+            --radius-sm: 12px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* ================================================================
+           LAYOUT — SIDEBAR + MAIN
+           ================================================================ */
+        .dashboard {
+            display: grid;
+            grid-template-columns: var(--sidebar-width) 1fr;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        aside {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--glass-border);
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            backdrop-filter: blur(20px);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            z-index: 50;
+        }
+
+        .logo {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-text-fill-color: white;
+            font-size: 1rem;
+        }
+
+        nav ul {
+            list-style: none;
+        }
+
+        nav li {
+            padding: 0.8rem 1rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 0.35rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.92rem;
+            font-weight: 500;
+            position: relative;
+        }
+
+        nav li:hover {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            transform: translateX(4px);
+        }
+
+        nav li.active {
+            background: rgba(99, 102, 241, 0.12);
+            color: var(--text-main);
+            border-left: 3px solid var(--accent-1);
+        }
+
+        nav li .nav-icon {
+            font-size: 1.15rem;
+            width: 24px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--glass-border);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        /* Mobile menu button */
+        .menu-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 100;
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            font-size: 1.4rem;
+            cursor: pointer;
+            backdrop-filter: blur(20px);
+        }
+
+        /* Main content */
+        main {
+            padding: 2.5rem 3rem;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+
+        /* ================================================================
+           VIEWS — Each tab is a .view section
+           ================================================================ */
+        .view {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Page header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .page-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .page-header .subtitle {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        .sync-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.5rem 1.2rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            color: var(--accent-1);
+        }
+
+        .sync-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        /* ================================================================
+           STATS CARDS
+           ================================================================ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            padding: 1.75rem;
+            border-radius: var(--radius-lg);
+            backdrop-filter: blur(20px);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-6px);
+            background: var(--bg-card-hover);
+            border-color: var(--glass-border-hover);
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-icon.blue {
+            background: rgba(56, 189, 248, 0.12);
+        }
+
+        .stat-icon.purple {
+            background: rgba(168, 85, 247, 0.12);
+        }
+
+        .stat-icon.green {
+            background: rgba(16, 185, 129, 0.12);
+        }
+
+        .stat-icon.amber {
+            background: rgba(245, 158, 11, 0.12);
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+
+        /* ================================================================
+           CONTENT SECTIONS
+           ================================================================ */
+        .section {
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 1.75rem;
+            backdrop-filter: blur(20px);
+            margin-bottom: 2rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-header h2 {
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        .section-header .badge {
+            padding: 0.35rem 0.8rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.12);
+            color: var(--accent-1);
+        }
+
+        /* ================================================================
+           FOLDER TREE VIEW
+           ================================================================ */
+        .tree {
+            padding-left: 0;
+        }
+
+        .tree-node {
+            list-style: none;
+            position: relative;
+        }
+
+        .tree-node .node-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0.65rem 0.8rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.92rem;
+            margin-bottom: 2px;
+        }
+
+        .tree-node .node-content:hover {
+            background: var(--bg-card);
+        }
+
+        .tree-node .node-icon {
+            font-size: 1.1rem;
+            width: 24px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .tree-node .node-label {
+            font-weight: 500;
+        }
+
+        .tree-node .node-badge {
+            margin-left: auto;
+            padding: 0.15rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-1);
+        }
+
+        .tree-node .toggle-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            transition: transform 0.25s ease;
+            flex-shrink: 0;
+        }
+
+        .tree-node.collapsed>.tree-children {
+            display: none;
+        }
+
+        .tree-node.collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .tree-children {
+            padding-left: 1.5rem;
+            border-left: 1px solid var(--glass-border);
+            margin-left: 1.15rem;
+        }
+
+        /* Level-specific colors */
+        .tree-node[data-level="0"]>.node-content .node-icon {
+            color: var(--accent-1);
+        }
+
+        .tree-node[data-level="1"]>.node-content .node-icon {
+            color: var(--accent-2);
+        }
+
+        .tree-node[data-level="2"]>.node-content .node-icon {
+            color: var(--accent-3);
+        }
+
+        /* ================================================================
+           FILES TABLE
+           ================================================================ */
+        .files-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.65rem 1rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--glass-border);
+            background: var(--bg-secondary);
+            color: var(--text-main);
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-box:focus {
+            border-color: var(--accent-1);
+        }
+
+        .search-box::placeholder {
+            color: var(--text-dim);
+        }
+
+        .filter-btn {
+            padding: 0.65rem 1.2rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--glass-border);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: rgba(99, 102, 241, 0.12);
+            border-color: var(--accent-1);
+            color: var(--accent-1);
+        }
+
+        .file-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 4px;
+        }
+
+        .file-table th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            font-weight: 600;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .file-table td {
+            padding: 0.85rem 1rem;
+            font-size: 0.9rem;
+            vertical-align: middle;
+        }
+
+        .file-table tr.file-row {
+            transition: all 0.2s;
+            border-radius: var(--radius-sm);
+        }
+
+        .file-table tr.file-row:hover td {
+            background: var(--bg-card);
+        }
+
+        .file-table tr.file-row td:first-child {
+            border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+        }
+
+        .file-table tr.file-row td:last-child {
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        }
+
+        .file-name-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-ext-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .file-ext-icon.pdf {
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--accent-red);
+        }
+
+        .file-ext-icon.doc {
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-3);
+        }
+
+        .file-ext-icon.img {
+            background: rgba(168, 85, 247, 0.12);
+            color: var(--accent-2);
+        }
+
+        .file-ext-icon.default {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-dim);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0.3rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-badge.uploaded {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-green);
+        }
+
+        .status-badge.skipped {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--accent-amber);
+        }
+
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+        }
+
+        .status-badge.preview {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-1);
+        }
+
+        /* Check/Verify button */
+        .verify-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 2px solid var(--glass-border);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            color: var(--text-dim);
+            font-size: 1rem;
+            position: relative;
+        }
+
+        .verify-btn:hover {
+            border-color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.08);
+            color: var(--accent-green);
+            transform: scale(1.1);
+        }
+
+        .verify-btn.checked {
+            border-color: var(--accent-green);
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+
+        .verify-btn.checked::after {
+            content: '✓';
+            font-weight: 700;
+        }
+
+        .verify-btn:not(.checked)::after {
+            content: '';
+        }
+
+        .path-text {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+        }
+
+        .date-text {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        /* ================================================================
+           HISTORY TIMELINE
+           ================================================================ */
+        .timeline {
+            position: relative;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 18px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--glass-border);
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 1.5rem;
+            padding-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .timeline-dot {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+            z-index: 2;
+        }
+
+        .timeline-dot.upload {
+            background: rgba(16, 185, 129, 0.15);
+            border: 2px solid var(--accent-green);
+        }
+
+        .timeline-dot.preview {
+            background: rgba(99, 102, 241, 0.15);
+            border: 2px solid var(--accent-1);
+        }
+
+        .timeline-body {
+            flex: 1;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .timeline-meta {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            flex-wrap: wrap;
+        }
+
+        /* ================================================================
+           EMPTY STATE
+           ================================================================ */
+        .empty-state {
+            padding: 4rem 2rem;
+            text-align: center;
+            color: var(--text-dim);
+        }
+
+        .empty-state .empty-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1.5rem;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        .empty-state code {
+            background: var(--bg-card);
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        /* ================================================================
+           PAGINATION / TABLE FOOTER
+           ================================================================ */
+        .table-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+
+        .pagination {
+            display: flex;
+            gap: 4px;
+        }
+
+        .pagination button {
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.82rem;
+            transition: all 0.2s;
+        }
+
+        .pagination button:hover,
+        .pagination button.active {
+            background: rgba(99, 102, 241, 0.12);
+            border-color: var(--accent-1);
+            color: var(--accent-1);
+        }
+
+        /* ================================================================
+           RESPONSIVE
+           ================================================================ */
+        @media (max-width: 900px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            aside {
+                position: fixed;
+                left: -280px;
+                top: 0;
+                width: 280px;
+                height: 100vh;
+                transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+                z-index: 200;
+            }
+
+            aside.open {
+                left: 0;
+            }
+
+            .overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 150;
+            }
+
+            .overlay.active {
+                display: block;
+            }
+
+            .menu-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            main {
+                padding: 1.5rem;
+                padding-top: 4rem;
+                max-height: none;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+
+            .file-table th:nth-child(3),
+            .file-table td:nth-child(3) {
+                display: none;
+            }
+
+            .page-header h1 {
+                font-size: 1.4rem;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            main {
+                padding: 1rem;
+                padding-top: 4rem;
+            }
+
+            .file-table th:nth-child(4),
+            .file-table td:nth-child(4) {
+                display: none;
+            }
+        }
+
+        /* ================================================================
+           SCROLLBAR
+           ================================================================ */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ================================================================
+           TOAST NOTIFICATIONS
+           ================================================================ */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toast {
+            padding: 0.85rem 1.4rem;
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(20px);
+            color: var(--text-main);
+            font-size: 0.88rem;
+            font-weight: 500;
+            animation: toastIn 0.35s ease, toastOut 0.35s ease 2.5s forwards;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            max-width: 340px;
+        }
+
+        .toast.success {
+            border-color: var(--accent-green);
+        }
+
+        .toast.error {
+            border-color: var(--accent-red);
+        }
+
+        .toast.info {
+            border-color: var(--accent-1);
+        }
+
+        @keyframes toastIn {
+            from {
+                opacity: 0;
+                transform: translateX(40px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes toastOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateX(40px);
+            }
+        }
+
+        /* ================================================================
+           REFRESH / SYNC BUTTONS
+           ================================================================ */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.55rem 1.1rem;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--glass-border);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-family: inherit;
+        }
+
+        .action-btn:hover {
+            background: rgba(99, 102, 241, 0.12);
+            border-color: var(--accent-1);
+            color: var(--accent-1);
+            transform: translateY(-1px);
+        }
+
+        .action-btn.spinning .btn-icon {
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ================================================================
+           SETTINGS VIEW
+           ================================================================ */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .settings-card {
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 1.75rem;
+            backdrop-filter: blur(20px);
+        }
+
+        .settings-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.65rem 0;
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 0.88rem;
+        }
+
+        .settings-row:last-child {
+            border-bottom: none;
+        }
+
+        .settings-row .label {
+            color: var(--text-dim);
+        }
+
+        .settings-row .value {
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .status-dot.online {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+        }
+
+        .status-dot.offline {
+            background: var(--accent-red);
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+
+        .cmd-block {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+            font-size: 0.82rem;
+            color: var(--accent-green);
+            margin-top: 0.75rem;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Mobile overlay -->
+    <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+    <!-- Mobile menu button -->
+    <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">☰</button>
+
+    <!-- Toast notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="dashboard">
+        <!-- ============================================================
+             SIDEBAR
+             ============================================================ -->
+        <aside id="sidebar">
+            <div class="logo">
+                <div class="logo-icon">⚡</div>
+                Drive Organizer
+            </div>
+
+            <nav>
+                <ul>
+                    <li class="active" onclick="switchView('overview', this)">
+                        <span class="nav-icon">📊</span> Overview
+                    </li>
+                    <li onclick="switchView('folders', this)">
+                        <span class="nav-icon">🌿</span> Folder Tree
+                    </li>
+                    <li onclick="switchView('history', this)">
+                        <span class="nav-icon">🕐</span> History
+                    </li>
+                    <li onclick="switchView('settings', this)">
+                        <span class="nav-icon">⚙️</span> Settings
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div id="sidebar-sync-status">Last sync: Never</div>
+            </div>
+        </aside>
+
+        <!-- ============================================================
+             MAIN CONTENT
+             ============================================================ -->
+        <main>
+            <!-- ====== OVERVIEW VIEW ====== -->
+            <div class="view active" id="view-overview">
+                <div class="page-header">
+                    <div>
+                        <h1>Dashboard</h1>
+                        <div class="subtitle" id="overview-subtitle">Your files are organized & tracked</div>
+                    </div>
+                    <div class="header-actions">
+                        <button class="action-btn" id="refresh-btn" onclick="manualRefresh()">
+                            <span class="btn-icon">🔄</span> Refresh
+                        </button>
+                        <div class="sync-badge" id="sync-badge">
+                            <span class="dot"></span>
+                            <span id="sync-text">Synced</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">📁</div>
+                        <div class="stat-label">Recent Uploads</div>
+                        <div class="stat-value" id="stat-recent-uploads">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">📂</div>
+                        <div class="stat-label">Groups</div>
+                        <div class="stat-value" id="stat-total-groups">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">✅</div>
+                        <div class="stat-label">Verified</div>
+                        <div class="stat-value" id="stat-verified">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon amber">📅</div>
+                        <div class="stat-label">Last Upload</div>
+                        <div class="stat-value" id="stat-last-upload" style="font-size: 1.25rem; margin-top: 0.5rem;">—
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="section">
+                    <div class="section-header">
+                        <h2>🏢 Recent Uploads by Company</h2>
+                        <span class="badge" id="recent-count">0 companies</span>
+                    </div>
+                    <div id="recent-files-list"></div>
+                </div>
+
+                <!-- Quick folder overview -->
+                <div class="section">
+                    <div class="section-header">
+                        <h2>📂 Active Groups</h2>
+                        <span class="badge" id="groups-badge">0 groups</span>
+                    </div>
+                    <div id="groups-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; align-items: start; margin-top: 1rem;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- ====== FOLDER TREE VIEW ====== -->
+            <div class="view" id="view-folders">
+                <div class="page-header">
+                    <div>
+                        <h1>Folder Tree</h1>
+                        <div class="subtitle">Your Drive folder structure — Project → Month → Date</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2>🌿 Folder Hierarchy</h2>
+                        <div>
+                            <button class="filter-btn" onclick="expandAllTree()">Expand All</button>
+                            <button class="filter-btn" onclick="collapseAllTree()" style="margin-left: 0.5rem;">Collapse
+                                All</button>
+                        </div>
+                    </div>
+                    <div id="folder-tree-container"></div>
+                </div>
+            </div>
+
+            <!-- ====== HISTORY VIEW ====== -->
+            <div class="view" id="view-history">
+                <div class="page-header">
+                    <div>
+                        <h1>Upload History</h1>
+                        <div class="subtitle">Timeline of all sync operations</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div id="history-timeline"></div>
+                </div>
+            </div>
+
+            <!-- ====== SETTINGS VIEW ====== -->
+            <div class="view" id="view-settings">
+                <div class="page-header">
+                    <div>
+                        <h1>Settings</h1>
+                        <div class="subtitle">Server status, data info, and quick links</div>
+                    </div>
+                </div>
+
+                <div class="settings-grid">
+                    <div class="settings-card">
+                        <h3>🌐 Server Status</h3>
+                        <div class="settings-row">
+                            <span class="label">Connection</span>
+                            <span class="value" id="settings-server-status">Checking...</span>
+                        </div>
+                        <div class="settings-row">
+                            <span class="label">Data File</span>
+                            <span class="value" id="settings-data-file">tracker_data.json</span>
+                        </div>
+                        <div class="settings-row">
+                            <span class="label">Auto-refresh</span>
+                            <span class="value">Every 30s</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>📊 Data Summary</h3>
+                        <div class="settings-row">
+                            <span class="label">Total Files</span>
+                            <span class="value" id="settings-total-files">0</span>
+                        </div>
+                        <div class="settings-row">
+                            <span class="label">Total Groups</span>
+                            <span class="value" id="settings-total-groups">0</span>
+                        </div>
+                        <div class="settings-row">
+                            <span class="label">Verified Files</span>
+                            <span class="value" id="settings-verified">0</span>
+                        </div>
+                        <div class="settings-row">
+                            <span class="label">History Entries</span>
+                            <span class="value" id="settings-history-count">0</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>🚀 Quick Commands</h3>
+                        <div style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Start an
+                            upload run:</div>
+                        <div class="cmd-block">python run_upload.py</div>
+                        <div
+                            style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 1rem; margin-bottom: 0.5rem;">
+                            Preview mode (no upload):</div>
+                        <div class="cmd-block">python run_upload.py --preview</div>
+                        <div
+                            style="font-size: 0.88rem; color: var(--text-secondary); margin-top: 1rem; margin-bottom: 0.5rem;">
+                            Launch this dashboard:</div>
+                        <div class="cmd-block">python dashboard_server.py</div>
+                    </div>
+
+                    <div class="settings-card">
+                        <h3>🔗 Actions</h3>
+                        <button class="action-btn" style="width: 100%; justify-content: center; margin-bottom: 0.75rem;"
+                            onclick="manualRefresh()">
+                            🔄 Refresh Data Now
+                        </button>
+                        <button class="action-btn" style="width: 100%; justify-content: center; margin-bottom: 0.75rem;"
+                            onclick="syncVerifiedToServer()">
+                            ☁️ Sync Verified to Server
+                        </button>
+                        <button class="action-btn" style="width: 100%; justify-content: center;"
+                            onclick="clearLocalVerified()">
+                            🗑️ Clear Local Cache
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ================================================================
+         JAVASCRIPT
+         ================================================================ -->
+    <script>
+        // ========== STATE ==========
+        let appData = null;
+        let currentFilter = 'all';
+        let currentSearch = '';
+        let currentPage = 1;
+        const PAGE_SIZE = 15;
+
+        // ========== DATA LOADING ==========
+        async function loadData() {
+            try {
+                const response = await fetch('tracker_data.json?' + Date.now());
+                appData = await response.json();
+
+                // Ensure new fields exist
+                if (!appData.folder_tree) appData.folder_tree = {};
+                if (!appData.verified_files) appData.verified_files = {};
+                if (!appData.all_files) appData.all_files = [];
+
+                renderAll();
+            } catch (e) {
+                console.error('Error loading data:', e);
+            }
+        }
+
+        function renderAll() {
+            renderOverview();
+            renderFolderTree();
+            // renderFiles();
+            renderHistory();
+            renderSettings();
+        }
+
+        // ========== OVERVIEW ==========
+        function renderOverview() {
+            const d = appData;
+
+            // Calculate Recent Uploads
+            const allFiles = d.all_files || [];
+            let recentUploadsCount = 0;
+            if (allFiles.length > 0) {
+                const latestRunId = allFiles[allFiles.length - 1].run_id;
+                recentUploadsCount = allFiles.filter(f => f.run_id === latestRunId).length;
+            }
+
+            // Stats
+            document.getElementById('stat-recent-uploads').textContent = recentUploadsCount.toLocaleString();
+            document.getElementById('stat-total-groups').textContent = (d.total_groups || 0).toLocaleString();
+            document.getElementById('stat-verified').textContent = Object.keys(d.verified_files || {}).length.toLocaleString();
+
+            if (d.last_upload) {
+                const parts = d.last_upload.split(' ');
+                document.getElementById('stat-last-upload').textContent = parts[0] || '—';
+                document.getElementById('sync-text').textContent = 'Synced ' + parts[0];
+                document.getElementById('sidebar-sync-status').textContent = 'Last sync: ' + parts[0];
+                document.getElementById('overview-subtitle').textContent = isServerOnline
+                    ? '✓ Connected to server — Your files are organized & tracked'
+                    : 'Offline mode — Your files are organized & tracked';
+            } else {
+                document.getElementById('stat-last-upload').textContent = '—';
+                document.getElementById('sync-text').textContent = 'Not synced';
+                document.getElementById('sidebar-sync-status').textContent = 'Last sync: Never';
+            }
+
+            // Recent Uploads by Company
+            const allFilesData = d.all_files || [];
+            let recentRunId = null;
+            let recentCompanyCounts = {};
+            if (allFilesData.length > 0) {
+                recentRunId = allFilesData[allFilesData.length - 1].run_id;
+                const recentFilesRun = allFilesData.filter(f => f.run_id === recentRunId);
+                recentFilesRun.forEach(f => {
+                    const company = f.group || 'Unknown';
+                    if (!recentCompanyCounts[company]) {
+                        recentCompanyCounts[company] = 0;
+                    }
+                    recentCompanyCounts[company]++;
+                });
+            }
+
+            const recentContainer = document.getElementById('recent-files-list');
+            const recentCompanies = Object.keys(recentCompanyCounts).sort((a,b) => recentCompanyCounts[b] - recentCompanyCounts[a]);
+            document.getElementById('recent-count').textContent = `${recentCompanies.length} companies`;
+
+            if (recentCompanies.length === 0) {
+                recentContainer.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No files uploaded yet.<br>Run <code>python run_upload.py</code> to start.</p></div>';
+            } else {
+                recentContainer.innerHTML = recentCompanies.map(company => `
+                    <div style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--glass-border);">
+                        <div class="file-ext-icon purple" style="font-size: 1.2rem; background: rgba(168, 85, 247, 0.12); color: var(--accent-2);">🏢</div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 0.95rem; text-transform: capitalize;">${escHtml(company)}</div>
+                            <div class="path-text">Uploaded recently</div>
+                        </div>
+                        <span class="status-badge" style="background: rgba(99, 102, 241, 0.1); color: var(--accent-1); font-size: 0.85rem;">${recentCompanyCounts[company]} files</span>
+                    </div>
+                `).join('');
+            }
+
+            // Groups grid
+            const groups = d.groups || {};
+            const groupNames = Object.keys(groups).sort();
+            const tree = d.folder_tree || {};
+            
+            document.getElementById('groups-badge').textContent = `${groupNames.length} groups`;
+            const groupsGrid = document.getElementById('groups-grid');
+
+            if (groupNames.length === 0) {
+                groupsGrid.innerHTML = '<div class="empty-state" style="padding: 2rem;"><p>No groups yet.</p></div>';
+            } else {
+                groupsGrid.innerHTML = groupNames.map(name => {
+                    const info = groups[name] || {};
+                    const pKey = Object.keys(tree).find(k => k.toLowerCase() === name.toLowerCase()) || name;
+                    const months = tree[pKey] || {};
+                    const monthNames = Object.keys(months).sort();
+                    
+                    let html = `
+                        <div style="background: var(--bg-secondary); border: 1px solid var(--glass-border); padding: 0.8rem; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s;"
+                             onmouseover="this.style.borderColor='var(--accent-1)'"
+                             onmouseout="this.style.borderColor='var(--glass-border)'"
+                             onclick="const list = this.querySelector('.group-tree'); list.style.display = list.style.display === 'none' ? 'block' : 'none'; const icon = this.querySelector('.top-icon'); icon.textContent = list.style.display === 'none' ? '▶' : '▼';">
+                            <div style="display: flex; align-items: center; margin-bottom: 0.3rem;">
+                                <span class="top-icon" style="font-size: 0.75rem; margin-right: 0.4rem; color: var(--text-dim); transition: transform 0.2s;">▶</span>
+                                <div style="font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;" title="${escHtml(name)}">📁 ${escHtml(name)}</div>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-left: 1.1rem;">${info.count || 0} files</div>
+                            
+                            <div class="group-tree" onclick="event.stopPropagation()" style="display: none; margin-top: 0.8rem; border-top: 1px solid var(--glass-border); padding-top: 0.5rem; margin-left: 0.2rem; cursor: default;">
+                                <ul class="tree" style="font-size: 0.85rem;">
+                    `;
+
+                    if (monthNames.length === 0) {
+                        const files = info.files || [];
+                        html += files.map(f => {
+                            const fileName = typeof f === 'string' ? f : f.name;
+                            return `
+                            <li class="tree-node" data-level="1">
+                                <div class="node-content" style="padding: 0.15rem 0.6rem;">
+                                    <span class="toggle-icon" style="visibility: hidden; font-size: 0.7rem;">▼</span>
+                                    <span class="node-icon" style="font-size: 0.8rem;">📄</span>
+                                    <span class="node-label" style="font-size: 0.8rem;">${escHtml(fileName)}</span>
+                                </div>
+                            </li>
+                            `;
+                        }).join('');
+                    } else {
+                        for (const month of monthNames) {
+                            const dates = months[month] || [];
+                            html += `
+                                <li class="tree-node collapsed" data-level="1">
+                                    <div class="node-content" onclick="toggleNode(this)" style="padding: 0.2rem 0.6rem;">
+                                        <span class="toggle-icon" style="font-size: 0.7rem;">▼</span>
+                                        <span class="node-icon" style="font-size: 0.8rem;">📅</span>
+                                        <span class="node-label" style="font-size: 0.8rem;">${escHtml(month)}</span>
+                                        <span class="node-badge" style="font-size: 0.7rem;">${dates.length} dates</span>
+                                    </div>
+                                    <ul class="tree-children">
+                            `;
+                            for (const date of dates) {
+                                const pathKey = `${pKey}/${month}/${date}`;
+                                const filesInPath = (d.all_files || []).filter(f => f.path === pathKey);
+                                html += `
+                                    <li class="tree-node collapsed" data-level="2">
+                                        <div class="node-content" onclick="toggleNode(this)" style="padding: 0.2rem 0.6rem;">
+                                            <span class="toggle-icon" style="font-size: 0.7rem;">${filesInPath.length > 0 ? '▼' : '▶'}</span>
+                                            <span class="node-icon" style="font-size: 0.8rem;">📆</span>
+                                            <span class="node-label" style="font-size: 0.8rem;">${escHtml(date)}</span>
+                                            ${filesInPath.length > 0 ? `<span class="node-badge" style="font-size: 0.7rem;">${filesInPath.length} files</span>` : ''}
+                                        </div>
+                                        ${filesInPath.length > 0 ? `
+                                        <ul class="tree-children">
+                                            ${filesInPath.map(f => `
+                                                <li class="tree-node" data-level="3">
+                                                    <div class="node-content" style="padding: 0.15rem 0.6rem;">
+                                                        <span class="toggle-icon" style="visibility: hidden; font-size: 0.7rem;">▼</span>
+                                                        <span class="node-icon" style="font-size: 0.8rem;">📄</span>
+                                                        <span class="node-label" style="font-size: 0.8rem;">${escHtml(f.name)}</span>
+                                                    </div>
+                                                </li>
+                                            `).join('')}
+                                        </ul>
+                                        ` : ''}
+                                    </li>
+                                `;
+                            }
+                            html += `</ul></li>`;
+                        }
+                    }
+
+                    html += `</ul></div></div>`;
+                    return html;
+                }).join('');
+            }
+        }
+
+        // ========== FOLDER TREE ==========
+        function renderFolderTree() {
+            const tree = appData.folder_tree || {};
+            const container = document.getElementById('folder-tree-container');
+            const projects = Object.keys(tree).sort();
+
+            if (projects.length === 0) {
+                // If no folder_tree data, fall back to groups
+                const groups = appData.groups || {};
+                const groupNames = Object.keys(groups).sort();
+                if (groupNames.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><div class="empty-icon">🌿</div><p>No folder structure yet.<br>Run an upload to see the folder tree here.</p></div>';
+                    return;
+                }
+                // Build a simplified tree from groups
+                container.innerHTML = '<ul class="tree">' + groupNames.map(name => {
+                    const info = groups[name];
+                    return `
+                        <li class="tree-node collapsed" data-level="0">
+                            <div class="node-content" onclick="toggleNode(this)">
+                                <span class="toggle-icon">▼</span>
+                                <span class="node-icon">📁</span>
+                                <span class="node-label">${escHtml(name)}</span>
+                                <span class="node-badge">${info.count || 0} files</span>
+                            </div>
+                            <ul class="tree-children">
+                                ${(info.files || []).slice(-10).reverse().map(f => `
+                                    <li class="tree-node" data-level="1">
+                                        <div class="node-content">
+                                            <span class="toggle-icon" style="visibility: hidden;">▼</span>
+                                            <span class="node-icon">📄</span>
+                                            <span class="node-label">${escHtml(f.name || f)}</span>
+                                            <span style="margin-left: auto; font-size: 0.75rem; color: var(--text-dim);">${f.date || ''}</span>
+                                        </div>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </li>
+                    `;
+                }).join('') + '</ul>';
+                return;
+            }
+
+            // Build full tree from folder_tree data
+            let html = '<ul class="tree">';
+            for (const project of projects) {
+                const months = tree[project];
+                const monthNames = Object.keys(months).sort();
+                const totalDates = monthNames.reduce((t, m) => t + (Array.isArray(months[m]) ? months[m].length : 0), 0);
+
+                html += `
+                    <li class="tree-node collapsed" data-level="0">
+                        <div class="node-content" onclick="toggleNode(this)">
+                            <span class="toggle-icon">▼</span>
+                            <span class="node-icon">📁</span>
+                            <span class="node-label">${escHtml(project)}</span>
+                            <span class="node-badge">${monthNames.length} months</span>
+                        </div>
+                        <ul class="tree-children">
+                `;
+
+                for (const month of monthNames) {
+                    const dates = months[month] || [];
+                    html += `
+                        <li class="tree-node collapsed" data-level="1">
+                            <div class="node-content" onclick="toggleNode(this)">
+                                <span class="toggle-icon">▼</span>
+                                <span class="node-icon">📅</span>
+                                <span class="node-label">${escHtml(month)}</span>
+                                <span class="node-badge">${dates.length} dates</span>
+                            </div>
+                            <ul class="tree-children">
+                    `;
+
+                    for (const date of dates) {
+                        // Find files for this path
+                        const pathKey = `${project}/${month}/${date}`;
+                        const filesInPath = (appData.all_files || []).filter(f => f.path === pathKey);
+
+                        html += `
+                            <li class="tree-node collapsed" data-level="2">
+                                <div class="node-content" onclick="toggleNode(this)">
+                                    <span class="toggle-icon">${filesInPath.length > 0 ? '▼' : '▶'}</span>
+                                    <span class="node-icon">📆</span>
+                                    <span class="node-label">${escHtml(date)}</span>
+                                    ${filesInPath.length > 0 ? `<span class="node-badge">${filesInPath.length} files</span>` : ''}
+                                </div>
+                                ${filesInPath.length > 0 ? `
+                                    <ul class="tree-children">
+                                        ${filesInPath.map(f => `
+                                            <li class="tree-node" data-level="3">
+                                                <div class="node-content">
+                                                    <span class="toggle-icon" style="visibility: hidden;">▼</span>
+                                                    <span class="node-icon">📄</span>
+                                                    <span class="node-label">${escHtml(f.name)}</span>
+                                                </div>
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                ` : ''}
+                            </li>
+                        `;
+                    }
+
+                    html += '</ul></li>';
+                }
+
+                html += '</ul></li>';
+            }
+
+            html += '</ul>';
+            container.innerHTML = html;
+        }
+
+        function toggleNode(el) {
+            const node = el.parentElement;
+            node.classList.toggle('collapsed');
+        }
+
+        function expandAllTree() {
+            document.querySelectorAll('#folder-tree-container .tree-node').forEach(n => n.classList.remove('collapsed'));
+        }
+
+        function collapseAllTree() {
+            document.querySelectorAll('#folder-tree-container .tree-node').forEach(n => {
+                if (n.querySelector('.tree-children')) n.classList.add('collapsed');
+            });
+        }
+
+        // ========== FILES VIEW ==========
+        function getFilteredFiles() {
+            let files = [...(appData.all_files || [])].reverse();
+            const verified = appData.verified_files || {};
+
+            // Filter
+            if (currentFilter === 'verified') {
+                files = files.filter(f => verified[fileKey(f)]);
+            } else if (currentFilter === 'unverified') {
+                files = files.filter(f => !verified[fileKey(f)]);
+            }
+
+            // Search
+            if (currentSearch) {
+                const q = currentSearch.toLowerCase();
+                files = files.filter(f =>
+                    (f.name || '').toLowerCase().includes(q) ||
+                    (f.path || '').toLowerCase().includes(q) ||
+                    (f.group || '').toLowerCase().includes(q)
+                );
+            }
+
+            return files;
+        }
+
+        function renderFiles() {
+            const files = getFilteredFiles();
+            const totalPages = Math.max(1, Math.ceil(files.length / PAGE_SIZE));
+            if (currentPage > totalPages) currentPage = totalPages;
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const page = files.slice(start, start + PAGE_SIZE);
+            const verified = appData.verified_files || {};
+
+            const container = document.getElementById('files-table-container');
+
+            if (files.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No files match your criteria.</p></div>';
+                document.getElementById('files-showing').textContent = 'Showing 0 files';
+                document.getElementById('files-pagination').innerHTML = '';
+                return;
+            }
+
+            let html = `
+                <table class="file-table">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Drive Path</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th style="text-align: center;">Verify</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const f of page) {
+                const key = fileKey(f);
+                const isVerified = verified[key] === true;
+
+                html += `
+                    <tr class="file-row">
+                        <td>
+                            <div class="file-name-cell">
+                                <div class="file-ext-icon ${getExtClass(f.name)}">${getExt(f.name)}</div>
+                                <div>
+                                    <div style="font-weight: 500;">${escHtml(f.name)}</div>
+                                    <div style="font-size: 0.78rem; color: var(--text-dim);">${escHtml(f.group || '')}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="path-text">${escHtml(f.path || '—')}</td>
+                        <td class="date-text">${escHtml(f.date || '—')}</td>
+                        <td><span class="status-badge ${f.status || 'uploaded'}">${f.status || 'uploaded'}</span></td>
+                        <td style="text-align: center;">
+                            <button class="verify-btn ${isVerified ? 'checked' : ''}"
+                                    onclick="toggleVerify('${escAttr(key)}')"
+                                    title="${isVerified ? 'Verified ✓ Click to unverify' : 'Click to mark as verified'}">
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+
+            // Footer
+            document.getElementById('files-showing').textContent = `Showing ${start + 1}–${Math.min(start + PAGE_SIZE, files.length)} of ${files.length} files`;
+
+            // Pagination
+            let pagHtml = '';
+            if (totalPages > 1) {
+                for (let i = 1; i <= totalPages; i++) {
+                    if (totalPages > 7 && i > 3 && i < totalPages - 1 && Math.abs(i - currentPage) > 1) {
+                        if (i === 4 || i === totalPages - 2) pagHtml += '<button disabled style="border:none; background:none; color: var(--text-dim);">…</button>';
+                        continue;
+                    }
+                    pagHtml += `<button class="${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+                }
+            }
+            document.getElementById('files-pagination').innerHTML = pagHtml;
+        }
+
+        async function toggleVerify(key) {
+            if (!appData.verified_files) appData.verified_files = {};
+            const newVerified = !appData.verified_files[key];
+
+            // Optimistic update
+            if (newVerified) {
+                appData.verified_files[key] = true;
+            } else {
+                delete appData.verified_files[key];
+            }
+            saveVerifiedState();
+            renderFiles();
+            renderOverview();
+
+            // Persist to server
+            try {
+                const res = await fetch('/api/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, verified: newVerified })
+                });
+                if (res.ok) {
+                    showToast(newVerified ? '✓ Verified' : '✗ Unverified', 'success');
+                } else {
+                    showToast('Saved locally (server error)', 'error');
+                }
+            } catch (e) {
+                // Server not available, keep localStorage
+                showToast('Saved locally (offline)', 'info');
+            }
+        }
+
+        function saveVerifiedState() {
+            localStorage.setItem('drive_organizer_verified', JSON.stringify(appData.verified_files));
+        }
+
+        function loadVerifiedState() {
+            try {
+                const saved = localStorage.getItem('drive_organizer_verified');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (appData && parsed) {
+                        appData.verified_files = { ...(appData.verified_files || {}), ...parsed };
+                    }
+                }
+            } catch (e) { }
+        }
+
+        function setFileFilter(filter, btn) {
+            currentFilter = filter;
+            currentPage = 1;
+            document.querySelectorAll('.files-controls .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderFiles();
+        }
+
+        function filterFiles() {
+            currentSearch = document.getElementById('file-search').value;
+            currentPage = 1;
+            renderFiles();
+        }
+
+        function goToPage(p) {
+            currentPage = p;
+            renderFiles();
+        }
+
+        // ========== HISTORY TIMELINE ==========
+        function renderHistory() {
+            const history = [...(appData.history || [])].reverse();
+            const container = document.getElementById('history-timeline');
+
+            if (history.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-icon">🕐</div><p>No upload history yet.<br>Run <code>python run_upload.py</code> to start.</p></div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="timeline">' + history.map(h => `
+                <div class="timeline-item">
+                    <div class="timeline-dot ${h.is_preview ? 'preview' : 'upload'}">
+                        ${h.is_preview ? '🔍' : '✓'}
+                    </div>
+                    <div class="timeline-body">
+                        <div class="timeline-title">${h.is_preview ? 'Preview Run' : 'Upload Complete'}</div>
+                        <div class="timeline-meta">
+                            <span>📄 ${h.files} files</span>
+                            <span>📂 ${h.groups} groups</span>
+                            <span>🕐 ${h.date}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('') + '</div>';
+        }
+
+        // ========== NAVIGATION ==========
+        function switchView(viewName, navItem) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById('view-' + viewName).classList.add('active');
+
+            // Update nav highlight
+            document.querySelectorAll('nav li').forEach(li => li.classList.remove('active'));
+            if (navItem) navItem.classList.add('active');
+
+            closeSidebar();
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('overlay').classList.toggle('active');
+        }
+
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('overlay').classList.remove('active');
+        }
+
+        // ========== TOAST NOTIFICATIONS ==========
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ========== MANUAL REFRESH ==========
+        async function manualRefresh() {
+            const btn = document.getElementById('refresh-btn');
+            if (btn) btn.classList.add('spinning');
+            try {
+                await loadData();
+                loadVerifiedState();
+                renderAll();
+                showToast('🔄 Data refreshed', 'success');
+            } catch (e) {
+                showToast('Failed to refresh', 'error');
+            } finally {
+                if (btn) btn.classList.remove('spinning');
+            }
+        }
+
+        // ========== SERVER SYNC ==========
+        let isServerOnline = false;
+
+        async function checkServerStatus() {
+            try {
+                const res = await fetch('/api/status');
+                if (res.ok) {
+                    isServerOnline = true;
+                    const data = await res.json();
+                    const el = document.getElementById('settings-server-status');
+                    if (el) el.innerHTML = '<span class="status-dot online"></span> Online';
+                    const dfEl = document.getElementById('settings-data-file');
+                    if (dfEl && data.data_file) dfEl.textContent = data.data_file.split('/').pop();
+                    return true;
+                }
+            } catch (e) { }
+            isServerOnline = false;
+            const el = document.getElementById('settings-server-status');
+            if (el) el.innerHTML = '<span class="status-dot offline"></span> Offline (static file mode)';
+            return false;
+        }
+
+        async function syncVerifiedToServer() {
+            if (!appData || !appData.verified_files) {
+                showToast('No verified files to sync', 'info');
+                return;
+            }
+            try {
+                const res = await fetch('/api/verify/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ verified_files: appData.verified_files })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    showToast(`☁️ Synced ${data.total_verified} verified files`, 'success');
+                } else {
+                    showToast('Sync failed (server error)', 'error');
+                }
+            } catch (e) {
+                showToast('Sync failed (server offline)', 'error');
+            }
+        }
+
+        function clearLocalVerified() {
+            localStorage.removeItem('drive_organizer_verified');
+            showToast('🗑️ Local cache cleared', 'info');
+        }
+
+        // ========== SETTINGS VIEW ==========
+        function renderSettings() {
+            const d = appData;
+            const verifiedCount = Object.keys(d.verified_files || {}).length;
+
+            const el = (id) => document.getElementById(id);
+            if (el('settings-total-files')) el('settings-total-files').textContent = (d.total_files || 0).toLocaleString();
+            if (el('settings-total-groups')) el('settings-total-groups').textContent = (d.total_groups || 0).toLocaleString();
+            if (el('settings-verified')) el('settings-verified').textContent = verifiedCount.toLocaleString();
+            if (el('settings-history-count')) el('settings-history-count').textContent = (d.history || []).length.toLocaleString();
+
+            checkServerStatus();
+        }
+
+        // ========== HELPERS ==========
+        function fileKey(f) {
+            return (f.name || '') + '|' + (f.date || '') + '|' + (f.run_id || '');
+        }
+
+        function getExt(name) {
+            if (!name) return '?';
+            const parts = name.split('.');
+            return parts.length > 1 ? parts.pop().toUpperCase().slice(0, 4) : '—';
+        }
+
+        function getExtClass(name) {
+            const ext = getExt(name).toLowerCase();
+            if (ext === 'pdf') return 'pdf';
+            if (['doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx', 'csv'].includes(ext)) return 'doc';
+            if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) return 'img';
+            return 'default';
+        }
+
+        function escHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function escAttr(str) {
+            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+
+        // ========== INIT ==========
+        async function init() {
+            await loadData();
+            loadVerifiedState();
+            renderAll();
+            await checkServerStatus();
+        }
+
+        init();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadData, 30000);
+    </script>
+</body>
+
+</html>

@@ -170,6 +170,8 @@
       <p class="msg" id="driveMsg"></p>
       <div class="row" style="margin-top: 6px">
         <span id="accountStatus"></span>
+        <button class="btn" id="addCreds">Add Google access file…</button>
+        <input type="file" id="credsFile" accept=".json" hidden>
         <button class="btn" id="signIn">Sign in to Google</button>
         <button class="btn danger" id="signOut">Sign out</button>
       </div>
@@ -182,7 +184,8 @@
       <p class="hint">Renaming asks a small language model to find each letter's sender. Leave this empty to use
         Ollama on this computer, or paste the address of another computer that runs it (for example a Mac mini
         on your Tailscale network: <code>http://100.101.102.103:11434</code>). Only the letter's text and the
-        name of the company it is addressed to are sent there, never the PDF.</p>
+        name of the company it is addressed to are sent there. If the text does not show the sender, pictures of
+        the first two pages are sent too, so the model can read a logo or stamp.</p>
       <label for="ollamaUrl">Server address</label>
       <div class="row">
         <input type="text" id="ollamaUrl" placeholder="Empty = Ollama on this computer"
@@ -208,6 +211,13 @@
       <input type="search" id="companySearch" placeholder="Search companies…">
       <p class="msg" id="companyMsg"></p>
       <div id="companyList"></div>
+    </div>
+
+    <div class="card">
+      <h2>Quit</h2>
+      <p class="hint">Drive Organizer keeps running in the background after you close this page, so the
+        page opens instantly next time. Quit stops it until you open the app again.</p>
+      <button class="btn danger" id="quitBtn">Quit Drive Organizer</button>
     </div>
   </section>
 </main>
@@ -242,7 +252,7 @@ async function api(path, body) {
   if (!res.ok) throw new Error(data.error || 'Something went wrong.');
   return data;
 }
-const OFFLINE = 'Drive Organizer isn\'t running. Start it again with the launcher ("Drive Organizer.command" or "Drive Organizer.bat"), then reload this page.';
+const OFFLINE = 'Drive Organizer isn\'t running. Open the Drive Organizer app (or its launcher) again, then reload this page.';
 function showOffline() { const b = $('setupBanner'); b.textContent = OFFLINE; b.style.display = 'block'; }
 function say(id, text, kind) { const el = $(id); el.textContent = text; el.className = 'msg ' + (kind || ''); }
 
@@ -300,6 +310,7 @@ async function loadState() {
   $('autoCard').hidden = !appState.can_autostart;
   $('autoBtn').textContent = appState.autostart ? 'Turn off' : 'Turn on';
   $('autoStatus').textContent = appState.autostart ? 'On: starts when you sign in' : 'Off';
+  $('addCreds').hidden = appState.has_credentials;
   $('signIn').hidden = appState.signed_in;
   $('signOut').hidden = !appState.signed_in;
 
@@ -308,7 +319,7 @@ async function loadState() {
     [appState.companies_count > 0, 'Company list', appState.companies_error || 'Add your companies below.',
       appState.companies_count + ' companies'],
     [appState.has_credentials, 'Google access file',
-      'Ask the person who shared this app for credentials.json and put it in the app folder.'],
+      'Ask the person who shared this app for credentials.json, then press "Add Google access file" below.'],
     [appState.signed_in, 'Google account', 'Press "Sign in to Google" below.'],
   ];
   const remote = !!appState.ollama_url;
@@ -407,6 +418,17 @@ $('autoBtn').onclick = async () => {
     await api('/api/autostart', { on: !appState.autostart }); await loadState();
     say('autoMsg', appState.autostart ? 'Done. Drive Organizer will start by itself when you sign in.' : 'Turned off.', 'good');
   } catch (e) { say('autoMsg', e.message, 'bad'); }
+};
+$('addCreds').onclick = () => $('credsFile').click();
+$('credsFile').onchange = async () => {
+  const file = $('credsFile').files[0]; if (!file) return;
+  try { await api('/api/credentials', { text: await file.text() }); say('driveMsg', 'Google access file added.', 'good'); loadState(); }
+  catch (e) { say('driveMsg', e.message, 'bad'); }
+  $('credsFile').value = '';
+};
+$('quitBtn').onclick = async () => {
+  if (!confirm('Quit Drive Organizer? Anything that is running will be stopped.')) return;
+  await api('/api/quit', {}); showOffline();
 };
 $('signIn').onclick = () => run('signin');
 $('signOut').onclick = async () => {

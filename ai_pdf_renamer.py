@@ -26,7 +26,7 @@ USAGE:
   python3 ai_pdf_renamer.py --gemini-fallback         # Send unresolved files to Gemini
 """
 
-import os, sys, json, re, argparse, time, io, warnings, logging, urllib.request, shutil, subprocess
+import os, sys, json, re, argparse, time, io, warnings, logging, urllib.request, shutil, subprocess, base64
 from typing import Optional, List
 warnings.filterwarnings("ignore")
 
@@ -91,18 +91,20 @@ try:
 except ImportError:
     print("❌ Run: pip install rapidfuzz"); sys.exit(1)
 
+from utils.platform import data_dir
 from offline_renamer import normalize   # lowercase, alphanumerics only, trailing "inc" dropped
 
 # ── Config ───────────────────────────────────────────────────────────────────
 _SCRIPT_DIR    = os.path.dirname(os.path.abspath(__file__))
 LOCAL_MODEL    = "qwen3:4b"                # Ollama model for the sender (runs on this Mac)
+VISION_MODEL   = "gemma4:latest"           # vision fallback: reads logos/stamps OCR misses
 OLLAMA_URL     = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")   # set in .env to use a remote server
 GEMINI_MODEL   = "gemini-3.8-flash"        # used only with --gemini-fallback
 DEFAULT_BATCH_SIZE = 1                # Gemini fallback: one file per request, so answers can't shift between files
 IMAGE_DPI      = 300                  # standard OCR resolution; letter page → 2550×3300 px
 RPM_PER_KEY    = 10                   # Gemini free tier: 10 requests/min/key
 MIN_REQUEST_GAP = 2                   # floor gap; throttler auto-adjusts for key count
-CACHE_FILE     = os.path.join(_SCRIPT_DIR, ".ai_rename_cache.json")
+CACHE_FILE     = os.path.join(data_dir(), ".ai_rename_cache.json")
 
 # ── API Key Management ───────────────────────────────────────────────────────
 class APIKeyManager:
@@ -475,6 +477,47 @@ def extract_sender(text: str, recipient: str, model: str = LOCAL_MODEL) -> str:
             return sender
     return "UNKNOWN"
 
+VISION_SENDER_PROMPT = """Look at this scanned piece of physical mail. Identify the SENDER:
+the organization or person the mail is FROM. Look at the letterhead, logo, return address,
+signature block, or any printed name at the top or bottom of the page.
+
+This mail is addressed TO "{recipient}". That is the RECIPIENT, not the sender.
+
+Return JSON with:
+- "sender": a short common name for the sender, e.g. "IRS" not "Internal Revenue Service"
+Use "UNKNOWN" if the sender is not visible anywhere on the page.
+"""
+
+def extract_sender_vision(images: list, recipient: str, model: str = VISION_MODEL) -> str:
+    """Send the actual page images to a vision model to read logos, stamps,
+    and letterheads that OCR missed. Used as a fallback when text-based
+    extraction returns UNKNOWN."""
+    img_list = []
+    for img in images:
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        img_list.append(base64.b64encode(buf.getvalue()).decode())
+
+    body = {
+        "model": model, "stream": False, "think": False,
+        "format": {"type": "object", "properties": {"sender": {"type": "string"}}, "required": ["sender"]},
+        "options": {"temperature": 0, "num_predict": 200},
+        "messages": [{"role": "user",
+                      "content": VISION_SENDER_PROMPT.format(recipient=recipient),
+                      "images": img_list}],
+    }
+    req = urllib.request.Request(f"{OLLAMA_URL}/api/chat", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            data = json.loads(json.loads(resp.read())["message"]["content"])
+    except Exception:
+        return "UNKNOWN"
+    sender = (data.get("sender") or "").strip()
+    if not sender or sender.lower() in ("unknown", "n/a", "none") or same_org(sender, recipient):
+        return "UNKNOWN"
+    return sender
+
 def ollama_models() -> Optional[set]:
     """Names of downloaded models, or None if the Ollama server isn't reachable."""
     try:
@@ -482,6 +525,17 @@ def ollama_models() -> Optional[set]:
             return {m["name"] for m in json.loads(resp.read()).get("models", [])}
     except Exception:
         return None
+
+def ollama_has_vision(model: str) -> bool:
+    """True when the given model supports vision (image inputs)."""
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=5) as resp:
+            for m in json.loads(resp.read()).get("models", []):
+                if m["name"] == model and "vision" in m.get("capabilities", []):
+                    return True
+    except Exception:
+        pass
+    return False
 
 def check_ollama(model: str):
     """Start the local Ollama server in the background if needed (no app window),
@@ -888,6 +942,13 @@ def main():
     # Local analysis always needs Ollama — never fall back to Gemini silently
     check_ollama(LOCAL_MODEL)
 
+    # Vision fallback for UNKNOWN senders, when the server has a vision model
+    use_vision = ollama_has_vision(VISION_MODEL)
+    if use_vision:
+        print(f"👁️  Vision fallback enabled: {VISION_MODEL} (reads logos/stamps OCR misses)")
+    else:
+        print(f"ℹ️  Vision fallback off — no vision model {VISION_MODEL} (run: ollama pull {VISION_MODEL})")
+
     # ── Initialize API key manager (only for --gemini-fallback) ──
     key_manager = None
     if args.gemini_fallback:
@@ -962,6 +1023,10 @@ def main():
             text = ocr_pdf(fp)
             company, how = match_company(fn, text, companies)
             sender = extract_sender(text, company) if company else "UNKNOWN"
+            # Vision fallback: the page images show logos, stamps and letterheads OCR can't read
+            if sender == "UNKNOWN" and company and use_vision:
+                print("    👁️  Text model missed sender — trying vision model…")
+                sender = extract_sender_vision(pdf_to_images(fp), company)
             r.update(company=company, sender=sender, is_known_company=company is not None)
             if how == "conflict":
                 r["error"] = "filename and letter point to different companies"

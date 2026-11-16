@@ -31,7 +31,8 @@ except ImportError:
     sys.exit(1)
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-_SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))
+from utils.platform import data_dir
+_SCRIPT_DIR   = data_dir()   # the user's data folder (the project folder when run from source)
 JSON_FILE     = os.path.join(_SCRIPT_DIR, "companies_reference.json")
 ENC_FILE      = os.path.join(_SCRIPT_DIR, "companies_reference.enc")
 ENV_FILE      = os.path.join(_SCRIPT_DIR, ".env")
