@@ -35,7 +35,8 @@ The apps are not signed with a paid Apple or Microsoft certificate, so each comp
 A Mac app can only be built on a Mac, and a Windows app only on Windows.
 
 **On GitHub (builds both):** every push builds both apps. Open the Actions tab, click the newest
-"Build apps" run, and download the two files at the bottom of the page. Pushing a tag such as `v1.0` also publishes them on the Releases
+"Build apps" run, and download the two files at the bottom of the page. To publish a new version, change the number in
+`packaging/VERSION` and push: the first build with a new number puts both files on the Releases
 page, which is the one link to share.
 
 **On this Mac:**
