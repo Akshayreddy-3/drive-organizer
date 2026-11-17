@@ -21,6 +21,10 @@ for package in (["ocrmac"] if MAC else ["rapidocr", "onnxruntime"]):      # on-d
 
 a = Analysis([os.path.join(ROOT, "app.py")], pathex=[ROOT], datas=datas, binaries=binaries,
              hiddenimports=hidden, excludes=["tkinter"])
+# Keep only the Google Drive API description: the other ~580 files (about 100 MB) are never used,
+# and macOS scans every file the first time a downloaded app opens.
+DOCS = os.path.join("googleapiclient", "discovery_cache", "documents")
+a.datas = [d for d in a.datas if not d[0].startswith(DOCS) or os.path.basename(d[0]) == "drive.v3.json"]
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts,
           [("u", None, "OPTION"),            # unbuffered output: the page shows progress line by line
