@@ -92,12 +92,20 @@ except ImportError:
     print("❌ Run: pip install rapidfuzz"); sys.exit(1)
 
 from utils.platform import data_dir
-from offline_renamer import normalize   # lowercase, alphanumerics only, trailing "inc" dropped
+from offline_renamer import normalize as plain_normalize   # lowercase, alphanumerics only, trailing "inc" dropped
+
+LOOKALIKES = str.maketrans("01i58", "ollsb")   # scans mix up 0/O, 1/I/l, 5/S, 8/B: "I1 Tech" reads as "Il Tech"
+
+def normalize(name: str) -> str:
+    """Name for comparing only (never for a filename): plain_normalize with look-alike characters folded."""
+    return plain_normalize(name).translate(LOOKALIKES)
 
 # ── Config ───────────────────────────────────────────────────────────────────
 _SCRIPT_DIR    = os.path.dirname(os.path.abspath(__file__))
-LOCAL_MODEL    = "qwen3:4b"                # Ollama model for the sender (runs on this Mac)
-VISION_MODEL   = "gemma4:latest"           # vision fallback: reads logos/stamps OCR misses
+LOCAL_MODEL    = "qwen3:4b"                # Ollama model for the sender, unless the server has TEXT_ALIAS
+VISION_MODEL   = "gemma4:latest"           # vision fallback: reads logos/stamps OCR misses, unless VISION_ALIAS
+TEXT_ALIAS     = "drive-organizer-text:latest"     # Settings points these names at the models chosen there, on the
+VISION_ALIAS   = "drive-organizer-vision:latest"   # server, so everyone switches models without a new download
 OLLAMA_URL     = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")   # set in .env to use a remote server
 GEMINI_MODEL   = "gemini-3.8-flash"        # used only with --gemini-fallback
 DEFAULT_BATCH_SIZE = 1                # Gemini fallback: one file per request, so answers can't shift between files
@@ -518,6 +526,48 @@ def extract_sender_vision(images: list, recipient: str, model: str = VISION_MODE
         return "UNKNOWN"
     return sender
 
+RECIPIENT_PROMPT = """You are reading a scanned piece of physical mail. Who is it addressed to?
+Use the mailing address block (the name above the delivery address), not the sender's
+letterhead or return address.
+
+Return JSON with:
+- "recipient": the recipient's name copied exactly as printed
+Use "UNKNOWN" if no recipient name is shown.
+"""
+
+def read_recipient(text: str, pdf_path: str, names: dict, use_vision: bool):
+    """When the letter text names none (or several) of your companies, ask the text model, then
+    the vision model, who the mail is addressed to, and match that one name against your list
+    here. The list itself is never sent. Returns (company, how)."""
+    attempts = []
+    if text.strip():
+        attempts.append(("text model", LOCAL_MODEL, RECIPIENT_PROMPT + "\nOCR TEXT:\n" + text[:MAX_OCR_CHARS], False))
+    if use_vision:
+        attempts.append(("vision model", VISION_MODEL, RECIPIENT_PROMPT, True))
+    for how, model, prompt, with_images in attempts:
+        message = {"role": "user", "content": prompt}
+        body = {"model": model, "stream": False, "think": False,
+                "format": {"type": "object", "properties": {"recipient": {"type": "string"}}, "required": ["recipient"]},
+                "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 100},
+                "messages": [message]}
+        try:
+            if with_images:
+                message["images"] = []
+                for img in pdf_to_images(pdf_path):
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=90)
+                    message["images"].append(base64.b64encode(buf.getvalue()).decode())
+            req = urllib.request.Request(f"{OLLAMA_URL}/api/chat", data=json.dumps(body).encode(),
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=600) as resp:
+                data = json.loads(json.loads(resp.read())["message"]["content"])
+        except Exception:
+            continue
+        company, _ = match_name_in_text(str(data.get("recipient") or ""), names)
+        if company:
+            return company, how
+    return None, None
+
 def ollama_models() -> Optional[set]:
     """Names of downloaded models, or None if the Ollama server isn't reachable."""
     try:
@@ -537,9 +587,9 @@ def ollama_has_vision(model: str) -> bool:
         pass
     return False
 
-def check_ollama(model: str):
+def check_ollama() -> set:
     """Start the local Ollama server in the background if needed (no app window),
-    then exit with setup steps unless it's running with the model."""
+    then exit with setup steps unless it's running. Returns the server's model names."""
     names = ollama_models()
     local = re.match(r"https?://(localhost|127\.0\.0\.1)(:|/|$)", OLLAMA_URL) is not None
     exe = shutil.which("ollama")
@@ -558,9 +608,12 @@ def check_ollama(model: str):
     if names is None:
         print("❌ Ollama isn't running. Open the Ollama app (install from https://ollama.com).")
         sys.exit(1)
-    if model not in names and f"{model}:latest" not in names:
-        print(f"❌ Local model '{model}' isn't downloaded. Run: ollama pull {model}")
-        sys.exit(1)
+    return names
+
+def pick_models(names: set):
+    """The models chosen in Settings (kept on the server under fixed names), else the defaults."""
+    return (TEXT_ALIAS if TEXT_ALIAS in names else LOCAL_MODEL,
+            VISION_ALIAS if VISION_ALIAS in names else VISION_MODEL)
 
 # ── Batching helper ──────────────────────────────────────────────────────────
 def chunk_files(files: list, size: int):
@@ -940,14 +993,19 @@ def main():
     companies = ref.get("companies", [])
 
     # Local analysis always needs Ollama — never fall back to Gemini silently
-    check_ollama(LOCAL_MODEL)
+    global LOCAL_MODEL, VISION_MODEL
+    installed = check_ollama()
+    LOCAL_MODEL, VISION_MODEL = pick_models(installed)
+    if LOCAL_MODEL not in installed and f"{LOCAL_MODEL}:latest" not in installed:
+        print(f"❌ The reading model '{LOCAL_MODEL}' isn't on the model server. Choose one in Settings.")
+        sys.exit(1)
 
     # Vision fallback for UNKNOWN senders, when the server has a vision model
     use_vision = ollama_has_vision(VISION_MODEL)
     if use_vision:
         print(f"👁️  Vision fallback enabled: {VISION_MODEL} (reads logos/stamps OCR misses)")
     else:
-        print(f"ℹ️  Vision fallback off — no vision model {VISION_MODEL} (run: ollama pull {VISION_MODEL})")
+        print(f"ℹ️  Vision fallback off — the server has no picture model {VISION_MODEL}. Choose one in Settings.")
 
     # ── Initialize API key manager (only for --gemini-fallback) ──
     key_manager = None
@@ -1007,6 +1065,7 @@ def main():
     results = []
     unresolved = []                 # left untouched unless --gemini-fallback resolves them
     name_tracker = NameTracker()  # tracks duplicate company+sender across all files
+    names = name_index(companies)
 
     for i, fn in enumerate(pdfs, 1):
         eta_str = ""
@@ -1020,18 +1079,32 @@ def main():
              "company": None, "sender": None,
              "is_known_company": False, "error": None}
         try:
-            text = ocr_pdf(fp)
+            try:
+                text = ocr_pdf(fp)
+            except Exception as e:          # the vision model reads the page instead
+                print(f"    ⚠️  Couldn't read the text ({e}) — asking the vision model")
+                text = ""
             company, how = match_company(fn, text, companies)
-            sender = extract_sender(text, company) if company else "UNKNOWN"
+            if company is None:             # not found, or the filename and the letter disagree
+                company, read_how = read_recipient(text, fp, names, use_vision)
+                if company:
+                    how = read_how
+                    print(f"    🔎 Recipient read by the {how}: {company}")
+            sender = "UNKNOWN"
+            if company and text.strip():
+                try:
+                    sender = extract_sender(text, company, LOCAL_MODEL)
+                except Exception as e:      # timeout or a bad answer: the vision model gets a turn
+                    print(f"    ⚠️  Text model failed ({e})")
             # Vision fallback: the page images show logos, stamps and letterheads OCR can't read
             if sender == "UNKNOWN" and company and use_vision:
                 print("    👁️  Text model missed sender — trying vision model…")
-                sender = extract_sender_vision(pdf_to_images(fp), company)
+                sender = extract_sender_vision(pdf_to_images(fp), company, VISION_MODEL)
             r.update(company=company, sender=sender, is_known_company=company is not None)
-            if how == "conflict":
-                r["error"] = "filename and letter point to different companies"
+            if not company and how == "conflict":
+                r["error"] = "filename and letter point to different companies, and the models couldn't tell which"
             elif not company:
-                r["error"] = "recipient not found in your company list"
+                r["error"] = "recipient not found in your company list, by text or by the models"
             elif sender == "UNKNOWN" and args.gemini_fallback:
                 r["error"] = "sender not found in the letter"
             elif sender == "UNKNOWN":
@@ -1123,8 +1196,8 @@ def main():
                     r["error"] = f"Rename failed: {e}"
 
     if unresolved and not key_manager:
-        print(f"\n  💡 {len(unresolved)} file(s) left as is. Rename them by hand, or re-run with "
-              f"--gemini-fallback to send just those to Gemini.")
+        print(f"\n  💡 {len(unresolved)} file(s) left as is: the models couldn't tell which of your "
+              f"companies they're addressed to. Check the company list in Settings.")
     results.extend(unresolved)
 
     print_summary(results, total_api_calls, len(keys_used))

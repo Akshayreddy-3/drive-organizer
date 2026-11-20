@@ -31,7 +31,7 @@ import os
 # Add project root to path so we can import the renamer
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ai_pdf_renamer import match_company, grounded_sender, hide_recipient, rename_pdf
+from ai_pdf_renamer import match_company, grounded_sender, hide_recipient, rename_pdf, pick_models
 
 
 COMPANIES = [
@@ -73,6 +73,14 @@ class TestMatchCompany(unittest.TestCase):
 
     def test_name_in_letter_without_filename_hint(self):
         self.assertEqual(match_company("scan0001.pdf", LETTER, COMPANIES), (FABRIKAM, "name-in-text"))
+
+    def test_scan_mixes_up_look_alike_characters(self):
+        """A name with a digit, like "I1 Tech", often scans as "Il Tech" or "11 Tech"."""
+        companies = COMPANIES + [{"name": "I1 Tech Inc", "addresses": []}]
+        for scanned in ("Il Tech Inc", "11 TECH INC", "IL TECH INC", "I1 Tech, Inc."):
+            self.assertEqual(match_company("scan.pdf", scanned + "\n12 Example Road", companies),
+                             ("I1 Tech Inc", "name-in-text"), scanned)
+        self.assertEqual(match_company("iltech05142026212549.pdf", "Hello", companies), ("I1 Tech Inc", "hint-exact"))
 
     def test_unique_address_in_one_block(self):
         text = "742 Evergreen Terrace Ste 12\nSpringfield IL 62704-1234"
@@ -146,6 +154,17 @@ class TestRenamePdf(unittest.TestCase):
         self.assertEqual(rename_pdf("/nonexistent/scan.pdf", "Contoso Ltd", "Northwind Inc.", dry_run=True),
                          "Contoso Ltd - From Northwind Inc.pdf")
 
+
+
+class TestPickModels(unittest.TestCase):
+    """Models chosen in Settings live on the server under fixed names; without them, the defaults."""
+
+    def test_defaults_when_nothing_chosen(self):
+        self.assertEqual(pick_models({"qwen3:4b", "gemma4:latest"}), ("qwen3:4b", "gemma4:latest"))
+
+    def test_choice_saved_on_the_server(self):
+        names = {"qwen3:4b", "drive-organizer-text:latest", "drive-organizer-vision:latest"}
+        self.assertEqual(pick_models(names), ("drive-organizer-text:latest", "drive-organizer-vision:latest"))
 
 if __name__ == "__main__":
     unittest.main()

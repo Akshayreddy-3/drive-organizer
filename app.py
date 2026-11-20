@@ -42,7 +42,10 @@ from utils.platform import data_dir, get_desktop_path, setup_encoding
 FROZEN = getattr(sys, "frozen", False)   # True in the packaged app (see BUILD.md), False when run from source
 DATA_DIR = data_dir()                    # this user's settings and data; the project folder when run from source
 ENV_FILE = os.path.join(DATA_DIR, ".env")
-LOCAL_MODEL = "qwen3:4b"          # keep in sync with LOCAL_MODEL in ai_pdf_renamer.py
+LOCAL_MODEL = "qwen3:4b"          # keep these four in sync with ai_pdf_renamer.py
+VISION_MODEL = "gemma4:latest"
+TEXT_ALIAS = "drive-organizer-text:latest"
+VISION_ALIAS = "drive-organizer-vision:latest"
 
 
 # ── Settings (.env) ──────────────────────────────────────────────────────────
@@ -287,7 +290,47 @@ def ollama_status(url: str) -> str:
             names = {m["name"] for m in json.loads(resp.read()).get("models", [])}
     except Exception:
         return "offline"
-    return "ready" if LOCAL_MODEL in names or f"{LOCAL_MODEL}:latest" in names else "no-model"
+    return "ready" if names & {TEXT_ALIAS, LOCAL_MODEL, f"{LOCAL_MODEL}:latest"} else "no-model"
+
+
+# ── Models: chosen once on the server, so every computer that uses it switches together ──
+def server_models(url: str) -> list:
+    try:
+        with urllib.request.urlopen(f"{url}/api/tags", timeout=5) as resp:
+            return json.loads(resp.read()).get("models", [])
+    except Exception:
+        raise ValueError("Can't reach the model server. Check that it is on and Tailscale is connected.") from None
+
+
+def model_choice(url: str) -> dict:
+    """The server's models, and the ones chosen for reading text and pictures."""
+    models = server_models(url)
+    own = [m for m in models if m["name"] not in (TEXT_ALIAS, VISION_ALIAS)]
+
+    def chosen(alias, default):
+        digest = next((m.get("digest") for m in models if m["name"] == alias), None)
+        if digest is None:
+            return default
+        return next((m["name"] for m in own if m.get("digest") == digest), default)
+
+    return {"models": [{"name": m["name"], "vision": "vision" in (m.get("capabilities") or [])} for m in own],
+            "text": chosen(TEXT_ALIAS, LOCAL_MODEL), "vision": chosen(VISION_ALIAS, VISION_MODEL)}
+
+
+def choose_models(url: str, text: str, vision: str):
+    """Point the two fixed names on the server at the chosen models (Ollama's copy shares the files)."""
+    found = {m["name"]: m for m in model_choice(url)["models"]}
+    if text not in found:
+        raise ValueError("Pick a reading model from the list.")
+    if not found.get(vision, {}).get("vision"):
+        raise ValueError("Pick a picture model from the list (only models that can read pictures are shown).")
+    for source, alias in ((text, TEXT_ALIAS), (vision, VISION_ALIAS)):
+        req = urllib.request.Request(f"{url}/api/copy", data=json.dumps({"source": source, "destination": alias}).encode(),
+                                     headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req, timeout=30).close()
+        except Exception as err:
+            raise ValueError(f"The server didn't save the choice: {err}") from None
 
 
 def state() -> dict:
@@ -427,6 +470,11 @@ class AppHandler(DashboardHandler):
                 return self._send_json({"companies": load_companies()})
             except RuntimeError as err:      # an unreadable list is an error, never an empty list
                 return self._send_json({"error": str(err)}, status=500)
+        if parsed.path == "/api/models":
+            try:
+                return self._send_json(model_choice(env().get("OLLAMA_URL") or DEFAULT_OLLAMA))
+            except ValueError as err:
+                return self._send_json({"error": str(err)}, status=400)
         if parsed.path == "/api/job":
             since = int(parsed.query.split("=")[1]) if parsed.query.startswith("since=") else 0
             return self._send_json({"action": job["action"], "running": job["running"],
@@ -472,6 +520,8 @@ class AppHandler(DashboardHandler):
         elif path == "/api/ollama":
             url = set_ollama_url(str(body.get("url", "")))
             return {"ok": True, "url": url, "status": ollama_status(url or DEFAULT_OLLAMA)}
+        elif path == "/api/models":
+            choose_models(env().get("OLLAMA_URL") or DEFAULT_OLLAMA, str(body.get("text", "")), str(body.get("vision", "")))
         elif path == "/api/credentials":
             save_credentials(str(body.get("text", "")))
         elif path == "/api/quit":

@@ -39,7 +39,7 @@
   .col { min-width: 0; }
   @media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } header { gap: 12px; } }
   label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; }
-  input[type=text], input[type=search], textarea {
+  input[type=text], input[type=search], textarea, select {
     width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px;
     background: var(--bg); color: var(--text); font: inherit; }
   textarea { resize: vertical; min-height: 44px; }
@@ -184,8 +184,9 @@
       <p class="hint">Renaming asks a small language model to find each letter's sender. Leave this empty to use
         Ollama on this computer, or paste the address of another computer that runs it (for example a Mac mini
         on your Tailscale network: <code>http://100.101.102.103:11434</code>). Only the letter's text and the
-        name of the company it is addressed to are sent there. If the text does not show the sender, pictures of
-        the first two pages are sent too, so the model can read a logo or stamp.</p>
+        name of the company it is addressed to are sent there. If the text does not show the sender or which of
+        your companies the letter is for, pictures of the first two pages are sent too, so the model can read a
+        logo, stamp or address. Your company list is never sent.</p>
       <label for="ollamaUrl">Server address</label>
       <div class="row">
         <input type="text" id="ollamaUrl" placeholder="Empty = Ollama on this computer"
@@ -193,6 +194,16 @@
         <button class="btn primary" id="saveOllama">Save and test</button>
       </div>
       <p class="msg" id="ollamaMsg"></p>
+
+      <h2 style="margin-top: 18px">Models</h2>
+      <p class="hint">This choice is saved on the server, so every computer that uses it switches together, with
+        no new download. To try a new model, download it on the server in the Ollama app first, then pick it here.</p>
+      <div class="grid2">
+        <div><label for="textModel">Reading model (the letter's text)</label><select id="textModel"></select></div>
+        <div><label for="visionModel">Picture model (logos, stamps, unclear scans)</label><select id="visionModel"></select></div>
+      </div>
+      <div class="row" style="margin-top: 10px"><button class="btn primary" id="saveModels">Save models</button></div>
+      <p class="msg" id="modelsMsg"></p>
     </div>
 
     <div class="card">
@@ -296,7 +307,7 @@ function showTab(name) {
   document.querySelectorAll('main > section').forEach(s => s.classList.toggle('on', s.id === name));
   document.querySelector('main').style.maxWidth = name === 'history' ? 'none' : '';
   if (name === 'history') $('historyFrame').src = '/tracker.html';
-  if (name === 'settings') loadState();
+  if (name === 'settings') { loadState(); loadModels(); }
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
@@ -327,7 +338,7 @@ async function loadState() {
     appState.ollama === 'offline'
       ? (remote ? 'Can\'t reach ' + appState.ollama_url + '. Is that computer on, and is Tailscale connected on both?'
                 : 'Install Ollama from ollama.com and open it (needed for renaming only).')
-      : (remote ? 'On the server, open Terminal and run: ollama pull ' : 'Open Terminal and run: ollama pull ') + appState.local_model,
+      : 'Download a model ' + (remote ? 'on the server ' : '') + 'in the Ollama app, then pick it under Models in Settings.',
     remote ? 'Ready on ' + appState.ollama_url : undefined]);
   const list = $('checks'); list.replaceChildren();
   for (const [ok, title, todo, detail] of items) {
@@ -407,11 +418,29 @@ $('saveOllama').onclick = async () => {
     $('ollamaUrl').value = r.url;
     const where = r.url ? 'the server' : 'Ollama on this computer';
     if (r.status === 'ready') say('ollamaMsg', 'Saved. Connected to ' + where + '; the model is ready.', 'good');
-    else if (r.status === 'no-model') say('ollamaMsg', 'Saved. Reached ' + where + ', but the model "' + appState.local_model +
-      '" isn\'t downloaded there. On that computer run: ollama pull ' + appState.local_model, 'bad');
+    else if (r.status === 'no-model') say('ollamaMsg', 'Saved. Reached ' + where + '. Now pick a reading model under Models below.', 'bad');
     else say('ollamaMsg', 'Saved, but ' + where + ' can\'t be reached yet. Check that it is on, and that Tailscale is connected on both computers.', 'bad');
-    loadState();
+    loadState(); loadModels();
   } catch (e) { say('ollamaMsg', e.message, 'bad'); }
+};
+async function loadModels() {
+  let r;
+  try { r = await api('/api/models'); } catch (e) { $('textModel').replaceChildren(); $('visionModel').replaceChildren(); say('modelsMsg', e.message, 'bad'); return; }
+  const fill = (id, list, current) => {
+    $(id).replaceChildren(...list.map(m => new Option(m.name, m.name, false, m.name === current)));
+    if (current && !list.some(m => m.name === current)) $(id).prepend(new Option(current + ' (not on the server)', '', true, true));
+  };
+  fill('textModel', r.models, r.text);
+  fill('visionModel', r.models.filter(m => m.vision), r.vision);
+  say('modelsMsg', '');
+}
+$('saveModels').onclick = async () => {
+  say('modelsMsg', 'Saving…');
+  try {
+    await api('/api/models', { text: $('textModel').value, vision: $('visionModel').value });
+    say('modelsMsg', 'Saved on the server. Every computer that uses it now uses these models.', 'good');
+    loadModels(); loadState();
+  } catch (e) { say('modelsMsg', e.message, 'bad'); }
 };
 $('autoBtn').onclick = async () => {
   try {

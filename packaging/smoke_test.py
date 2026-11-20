@@ -48,6 +48,9 @@ def free_port() -> int:
 
 # ── Stand-in model server: answers like Ollama, and records what it was sent ──
 model_requests = []     # True for a request that carried page images
+models_used = []        # the model name each request asked for
+server_models = [{"name": "qwen3:4b", "digest": "aaa", "capabilities": ["completion"]},
+                 {"name": "gemma4:latest", "digest": "bbb", "capabilities": ["completion", "vision"]}]
 
 
 class FakeOllama(BaseHTTPRequestHandler):
@@ -60,13 +63,21 @@ class FakeOllama(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        self._reply({"models": [{"name": "qwen3:4b", "capabilities": ["completion"]},
-                                {"name": "gemma4:latest", "capabilities": ["completion", "vision"]}]})
+        self._reply({"models": server_models})
 
     def do_POST(self):
-        message = json.loads(self.rfile.read(int(self.headers["Content-Length"])))["messages"][0]
+        request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path == "/api/copy":             # Settings pointing a fixed name at a chosen model
+            source = next(m for m in server_models if m["name"] == request["source"])
+            server_models[:] = [m for m in server_models if m["name"] != request["destination"]]
+            server_models.append(dict(source, name=request["destination"]))
+            return self._reply({})
+        models_used.append(request["model"])
+        message = request["messages"][0]
         model_requests.append(bool(message.get("images")))
-        if message.get("images"):
+        if "WHO IS IT ADDRESSED TO" in message["content"].upper():
+            answer = {"recipient": "UNKNOWN"}        # the stray letter isn't for any of your companies
+        elif message.get("images"):
             answer = {"sender": "Globex Insurance"}
         elif "NORTHWIND" in message["content"].upper():
             answer = {"sender_as_printed": "NORTHWIND UTILITIES CORPORATION", "sender": "Northwind Utilities"}
@@ -192,6 +203,13 @@ def main():
               call("/api/ollama", {"url": "http://8.8.8.8:11434"})[0] == 400)
         status, saved = call("/api/ollama", {"url": model_url})
         check("the model server address is saved and reachable", status == 200 and saved.get("status") == "ready", str(saved))
+        status, models = call("/api/models")
+        check("Settings lists the server's models and the default choice", status == 200 and models.get("text") == "qwen3:4b"
+              and models.get("vision") == "gemma4:latest" and [m["name"] for m in models["models"] if m["vision"]] == ["gemma4:latest"], str(models))
+        check("a picture model that can't read pictures is refused",
+              call("/api/models", {"text": "qwen3:4b", "vision": "qwen3:4b"})[0] == 400)
+        status, _ = call("/api/models", {"text": "gemma4:latest", "vision": "gemma4:latest"})
+        check("a model choice is saved on the server", status == 200 and call("/api/models")[1].get("text") == "gemma4:latest")
         check("something that isn't a Google access file is refused", call("/api/credentials", {"text": "{\"a\": 1}"})[0] == 400)
         fake_credentials = json.dumps({"installed": {"client_id": "test", "client_secret": "test"}})
         check("a Google access file is added", call("/api/credentials", {"text": fake_credentials})[0] == 200
@@ -225,6 +243,7 @@ def main():
         check("Stop ends the running job", stopped["code"] not in (0, "timed out"), str(stopped["code"]))
 
         model_requests.clear()
+        models_used.clear()
         call("/api/run", {"action": "rename_preview", "folder": scans})
         job = wait_for_job()
         output = "\n".join(job["lines"])
@@ -233,8 +252,10 @@ def main():
               f"{FABRIKAM} - From Northwind Utilities.pdf" in output, output[-600:])
         check("the vision fallback names a sender the text didn't show",
               f"{FABRIKAM} - From Globex Insurance.pdf" in output, output[-600:])
-        check("page images are sent only for the one letter that needed them", model_requests.count(True) == 1,
+        check("page images are sent only for the two letters that needed them", model_requests.count(True) == 2,
               f"{model_requests.count(True)} image requests of {len(model_requests)}")
+        check("renaming uses the models chosen in Settings", models_used and set(models_used) <= {
+              "drive-organizer-text:latest", "drive-organizer-vision:latest"}, str(sorted(set(models_used))))
         check("output with emoji arrives intact", "📄" in output or "✅" in output)
         check("a preview changes no files", sorted(os.listdir(scans)) == sorted(
             ["notes.txt", "scan05142026212549.pdf", "scan05142026212550.pdf", "scan05142026212551.pdf"]))
