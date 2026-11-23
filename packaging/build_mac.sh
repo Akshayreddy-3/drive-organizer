@@ -4,6 +4,9 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# Google's libraries warn in the app's output on an old Python (the Mac's built-in 3.9 among them)
+python -c 'import sys; sys.exit(sys.version_info < (3, 11))' || { echo "❌ Build with Python 3.11 or newer"; exit 1; }
+
 python -m PyInstaller packaging/drive_organizer.spec --noconfirm
 
 # The disk image shows the app next to an Applications shortcut: drag one onto the other to install.

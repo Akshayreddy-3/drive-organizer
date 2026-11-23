@@ -107,7 +107,8 @@ open(os.path.join(folder, "notes.txt"), "w").write("not a scan")
 '''
 
 BUNDLED_LIBRARIES = r'''
-import cryptography, fitz, PIL, rapidfuzz, httplib2
+import cryptography, fitz, PIL, rapidfuzz, httplib2, urllib3
+import google.auth, google.oauth2.credentials, google.api_core, googleapiclient.discovery   # Drive sign-in and upload
 from googleapiclient.discovery_cache import get_static_doc
 assert get_static_doc("drive", "v3"), "Google Drive API description is missing from the package"
 status = httplib2.Http(timeout=30).request("https://www.googleapis.com/discovery/v1/apis?name=drive")[0].status
@@ -138,6 +139,8 @@ def main():
     out = run_in_app(BUNDLED_LIBRARIES)
     check("libraries load, Google's API description is included, secure connection to Google works",
           "libraries ok" in out.stdout, (out.stdout + out.stderr)[-400:])
+    check("no too-old-Python warnings from Google's libraries (they would show in the upload log)",
+          "Python version" not in out.stderr and "NotOpenSSLWarning" not in out.stderr, out.stderr[-400:])
     out = run_in_app(MAKE_LETTERS, scans)
     check("the app's PDF library writes the test letters", len(os.listdir(scans)) == 4, out.stderr[-400:])
 
